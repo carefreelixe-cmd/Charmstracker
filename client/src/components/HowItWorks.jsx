@@ -1,6 +1,11 @@
 import React from 'react';
 
 const HowItWorks = () => {
+  // Hardcoded base64 SVG images for charms
+  const crossImage = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNlMmY5ZDIiLz48cGF0aCBkPSJNNDAgMjJoMjB2MThIMTh2MjBoMTJ2MjBoMTB2LTIwaDIwVjQwSDQwWiIgZmlsbD0iIzZlYTY2MCIvPjwvc3ZnPg==";
+  const heartImage = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNmOWQ5YjMiLz48cGF0aCBkPSJNNTAgODFDMzcgNjkgMjMgNTcgMTUgNDQuNWMtOC0xMy00LTI3IDMuNS0zMy41IDcuNS02LjUgMTgtNi43IDI3LS41IDMgMiA2IDUuMyA3LjQgOC41aC0ycyA2LTEzIDE3LTEzYzEwLjgtLjIgMTYuMiA3IDE4IDE2IDIgOSAxIDE1LTQuNSAyNUM3MCA2Ni41IDU4LjggNzMuNSA1MCA4MVoiIGZpbGw9IiNlNmIwNzgiLz48L3N2Zz4=";
+  const texasImage = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNkMmUyZjkiLz48cGF0aCBkPSJNMzIgMzBMNDAgMThoMTVsMiA1IDQtMWgxNWw4IDMtNCAxMCA3IDJMNzMgODRsLTExLTEtMiAxaC03bC00LTFoLTdsMi0zLTMtMi03LTN2LThoNmw1LTEgMi0xMC0zLTMtNy0xLTMtMTEtMi0xMHoiIGZpbGw9IiM5NmEzYzQiLz48L3N2Zz4=";
+  
   return (
     <section className="py-16 bg-gray-50" id="discover">
       <div className="container mx-auto px-4 md:px-6">
@@ -17,7 +22,7 @@ const HowItWorks = () => {
             <p className="text-gray-600 mb-6">
               Charms Tracker pulls pricing and listing data from trusted marketplaces like eBay, Poshmark, and Etsy every few hours. Each charm's page shows an average price based on sold listings, not just what sellers are asking. Our charts reveal real-world value trends so you can spot deals, track appreciation, or confirm fair prices before buying or selling.
             </p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex items-start">
                 <div className="text-amber-500 mr-3">
                   <i className="fas fa-chart-line text-xl"></i>
@@ -70,7 +75,13 @@ const HowItWorks = () => {
               <div className="space-y-3">
                 <div className="flex justify-between items-center p-3 bg-white rounded shadow-sm">
                   <div className="flex items-center">
-                    <div className="w-10 h-10 bg-gray-200 rounded-md mr-3"></div>
+                    <div className="w-10 h-10 rounded-md mr-3 overflow-hidden">
+                      <img 
+                        src={crossImage} 
+                        alt="Silver Cross Charm" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
                     <span className="font-medium text-gray-800">Silver Cross Charm</span>
                   </div>
                   <div className="flex items-center text-green-600">
@@ -80,7 +91,13 @@ const HowItWorks = () => {
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white rounded shadow-sm">
                   <div className="flex items-center">
-                    <div className="w-10 h-10 bg-gray-200 rounded-md mr-3"></div>
+                    <div className="w-10 h-10 rounded-md mr-3 overflow-hidden">
+                      <img 
+                        src={heartImage} 
+                        alt="Gold Heart Pendant" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
                     <span className="font-medium text-gray-800">Gold Heart Pendant</span>
                   </div>
                   <div className="flex items-center text-green-600">
@@ -90,7 +107,13 @@ const HowItWorks = () => {
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white rounded shadow-sm">
                   <div className="flex items-center">
-                    <div className="w-10 h-10 bg-gray-200 rounded-md mr-3"></div>
+                    <div className="w-10 h-10 rounded-md mr-3 overflow-hidden">
+                      <img 
+                        src={texasImage} 
+                        alt="Texas Charm" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
                     <span className="font-medium text-gray-800">Texas Charm</span>
                   </div>
                   <div className="flex items-center text-red-600">
