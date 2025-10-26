@@ -136,36 +136,47 @@ class DataAggregator:
         
         # Update from James Avery official data if available
         if ja_data:
+            logger.info(f"🏪 [JAMES AVERY] Processing official data for: {charm_name}")
+            
             if ja_data.get('name'):
                 update_data['name'] = ja_data['name']
+                logger.info(f"   📝 Name: {ja_data['name']}")
             if ja_data.get('description'):
                 update_data['description'] = ja_data['description']
             if ja_data.get('material'):
                 update_data['material'] = ja_data['material']
+                logger.info(f"   🎨 Material: {ja_data['material']}")
             if ja_data.get('status'):
                 update_data['status'] = ja_data['status']
                 update_data['is_retired'] = ja_data['is_retired']
+                logger.info(f"   📊 Status: {ja_data['status']}")
             
             # Store James Avery official price
             if ja_data.get('official_price'):
                 update_data['james_avery_price'] = ja_data['official_price']
-                logger.info(f"💰 James Avery official price: ${ja_data['official_price']}")
+                logger.info(f"   💰 [JAMES AVERY] Official Price: ${ja_data['official_price']}")
+            else:
+                logger.info(f"   ⚠️  [JAMES AVERY] No official price found")
             
             # Store James Avery URL
             if ja_data.get('official_url'):
                 update_data['james_avery_url'] = ja_data['official_url']
+                logger.info(f"   🔗 Official URL: {ja_data['official_url'][:50]}...")
             
             # Handle images - ONLY use James Avery official images (preferred)
             james_avery_images = ja_data.get('images', [])
             if james_avery_images and len(james_avery_images) > 0:
                 # Use official James Avery images only
                 update_data['images'] = james_avery_images
-                logger.info(f"📷 Using {len(james_avery_images)} James Avery official images")
+                logger.info(f"   📷 [JAMES AVERY] Found {len(james_avery_images)} official images")
+                for idx, img in enumerate(james_avery_images[:3], 1):
+                    logger.info(f"      Image {idx}: {img[:70]}...")
             else:
-                logger.info("No James Avery images found")
+                logger.info(f"   ⚠️  [JAMES AVERY] No images found")
         
         # Only collect images from eBay listings (most preferred after James Avery)
         if 'images' not in update_data or not update_data.get('images'):
+            logger.info(f"🛒 [EBAY] Looking for fallback images from listings...")
             ebay_images = []
             for listing in listings:
                 if listing.get('platform') == 'eBay':
@@ -177,23 +188,23 @@ class DataAggregator:
             
             if ebay_images:
                 update_data['images'] = ebay_images
-                logger.info(f"Using {len(ebay_images)} images from eBay listings")
+                logger.info(f"   📷 [EBAY] Using {len(ebay_images)} images from eBay listings")
             else:
                 # Keep existing images if no new ones found
                 existing_images = existing_charm.get('images', [])
                 if existing_images:
                     update_data['images'] = existing_images
-                    logger.info(f"Keeping {len(existing_images)} existing images")
+                    logger.info(f"   ♻️  Keeping {len(existing_images)} existing images")
                 else:
                     update_data['images'] = []
-                    logger.warning("No images available for charm")
+                    logger.warning(f"   ⚠️  No images found from any source!")
         
         # Update listings
         if listings:
             # Log eBay prices for debugging
-            logger.info(f"📊 eBay Listing Prices for {existing_charm.get('name', 'Unknown')}:")
+            logger.info(f"📊 [EBAY] Listing Prices for {existing_charm.get('name', 'Unknown')}:")
             for idx, listing in enumerate(listings[:5], 1):
-                logger.info(f"  {idx}. ${listing['price']:.2f} - {listing['condition']} - {listing['title'][:50]}")
+                logger.info(f"   {idx}. ${listing['price']:.2f} - {listing['condition']} - {listing['title'][:50]}")
             
             # Format listings for database
             formatted_listings = []
