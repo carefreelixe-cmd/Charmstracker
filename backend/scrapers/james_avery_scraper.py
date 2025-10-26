@@ -304,13 +304,19 @@ class JamesAveryScraper:
                     'flyout', 'global-navigation', 'nav-', 'menu',
                     'icon', 'sprite', 'back_to_top', 'cross.svg',
                     'search.svg', 'wishlist.svg', 'location', 'account',
-                    'magnifying', 'gift-central', 'category-thumbnail'
+                    'magnifying', 'gift-central', 'category-thumbnail',
+                    'swatch-', '/swatch'  # Exclude color swatches
                 ]
-                # Also check if it's a product images directory
-                has_product_path = any(path in img_url_lower for path in ['/pdp/', '/products/', '-catalog/', 'items/', 'charms/'])
+                # Check if it's a Scene7 product image (best quality)
+                is_scene7 = 'scene7.com/is/image/JamesAvery/' in img_url
+                
+                # Check for product-specific patterns
+                has_product_code = bool(re.search(r'(CM-|MS_CM-|MS_KIT-)\d+', img_url))
+                
                 exclude_match = any(pattern in img_url_lower for pattern in exclude_patterns)
                 
-                return has_product_path or not exclude_match
+                # Prefer Scene7 images with product codes
+                return (is_scene7 and has_product_code) or (is_scene7 and not exclude_match)
             
             # Method 1: Look for JSON-LD structured data (most reliable)
             try:
@@ -320,16 +326,34 @@ class JamesAveryScraper:
                     data = json.loads(json_ld.string)
                     if isinstance(data, dict):
                         img_url = data.get('image', '')
-                        if isinstance(img_url, list) and len(img_url) > 0:
-                            img_url = img_url[0]
-                        if is_valid_product_image(img_url):
+                        if isinstance(img_url, list):
+                            for url in img_url:
+                                if is_valid_product_image(url):
+                                    if not url.startswith('http'):
+                                        url = f"{self.base_url}{url}"
+                                    if url not in images:
+                                        images.append(url)
+                        elif img_url and is_valid_product_image(img_url):
                             if not img_url.startswith('http'):
                                 img_url = f"{self.base_url}{img_url}"
                             images.append(img_url)
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to parse JSON-LD: {e}")
             
-            # Method 2: Look for meta property="og:image"
+            # Method 2: Extract all Scene7 URLs from HTML using regex
+            if not images:
+                # Find all Scene7 image URLs in the HTML
+                scene7_pattern = r'https://jamesavery\.scene7\.com/is/image/JamesAvery/([^?&"\'\s]+)'
+                scene7_matches = re.findall(scene7_pattern, html)
+                
+                for img_id in scene7_matches:
+                    full_url = f"https://jamesavery.scene7.com/is/image/JamesAvery/{img_id}"
+                    if is_valid_product_image(full_url) and full_url not in images:
+                        images.append(full_url)
+                        if len(images) >= 5:  # Max 5 images
+                            break
+            
+            # Method 3: Look for meta property="og:image"
             if not images:
                 og_image = soup.find('meta', property='og:image')
                 if og_image:
@@ -338,26 +362,6 @@ class JamesAveryScraper:
                         if not img_url.startswith('http'):
                             img_url = f"{self.base_url}{img_url}"
                         images.append(img_url)
-            
-            # Method 3: Find images in product carousel with data attributes
-            if not images:
-                carousel = soup.find('div', class_=re.compile(r'product-carousel'))
-                if carousel:
-                    # Look for images with data-zoom-url or similar
-                    imgs = carousel.find_all('img')
-                    for img in imgs:
-                        # Check multiple data attributes (James Avery uses lazy loading)
-                        img_url = (img.get('data-zoom-url') or 
-                                  img.get('data-src') or 
-                                  img.get('data-lazy-src') or
-                                  img.get('data-zoom-src') or
-                                  img.get('src') or '')
-                        
-                        if is_valid_product_image(img_url):
-                            if not img_url.startswith('http'):
-                                img_url = f"{self.base_url}{img_url}"
-                            if img_url not in images:
-                                images.append(img_url)
             
             # Method 4: Look for itemprop="image" 
             if not images:
