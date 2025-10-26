@@ -27,6 +27,8 @@ class Charm(BaseModel):
     status: str  # "Active", "Retired"
     is_retired: bool
     avg_price: float
+    james_avery_price: Optional[float] = None  # Official James Avery price
+    james_avery_url: Optional[str] = None  # Official product URL
     price_history: List[PriceHistoryEntry] = []
     price_change_7d: float
     price_change_30d: float
@@ -61,6 +63,8 @@ class CharmResponse(BaseModel):
     status: str
     is_retired: bool
     avg_price: float
+    james_avery_price: Optional[float] = None
+    james_avery_url: Optional[str] = None
     price_change_7d: float
     price_change_30d: float
     price_change_90d: float

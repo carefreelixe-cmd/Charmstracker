@@ -6,6 +6,13 @@ import {
 } from 'lucide-react';
 import { charmAPI, watchlistUtils, realtimeUtils } from '../services/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '../components/ui/carousel';
 
 export const CharmDetail = () => {
   const { id } = useParams();
@@ -239,35 +246,78 @@ export const CharmDetail = () => {
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
-          {/* Image Gallery */}
+          {/* Image Gallery/Carousel */}
           <div>
-            <div className="bg-white p-4 mb-4" style={{ border: 'none', borderRadius: '0px' }}>
-              <img
-                src={charm.images[selectedImage]}
-                alt={charm.name}
-                className="w-full h-96 object-cover"
-              />
-            </div>
-            {charm.images.length > 1 && (
-              <div className="grid grid-cols-4 gap-4">
-                {charm.images.map((img, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImage(index)}
-                    className="transition-smooth"
+            {charm.images.length > 1 ? (
+              // Carousel for multiple images
+              <div className="relative">
+                <Carousel
+                  opts={{
+                    align: "start",
+                    loop: true,
+                  }}
+                  className="w-full"
+                >
+                  <CarouselContent>
+                    {charm.images.map((img, index) => (
+                      <CarouselItem key={index}>
+                        <div className="bg-white p-4" style={{ border: 'none', borderRadius: '0px' }}>
+                          <img
+                            src={img}
+                            alt={`${charm.name} - Image ${index + 1}`}
+                            className="w-full h-96 object-cover"
+                          />
+                        </div>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious 
+                    className="left-4"
                     style={{
-                      border: selectedImage === index ? '2px solid #c9a94d' : '1px solid #bcbcbc',
-                      borderRadius: '0px',
-                      overflow: 'hidden'
+                      background: 'rgba(255, 255, 255, 0.9)',
+                      border: '1px solid #c9a94d',
+                      color: '#c9a94d'
                     }}
-                  >
-                    <img
-                      src={img}
-                      alt={`${charm.name} ${index + 1}`}
-                      className="w-full h-20 object-cover"
-                    />
-                  </button>
-                ))}
+                  />
+                  <CarouselNext 
+                    className="right-4"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.9)',
+                      border: '1px solid #c9a94d',
+                      color: '#c9a94d'
+                    }}
+                  />
+                </Carousel>
+                {/* Thumbnail Navigation */}
+                <div className="grid grid-cols-4 gap-4 mt-4">
+                  {charm.images.map((img, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedImage(index)}
+                      className="transition-smooth"
+                      style={{
+                        border: selectedImage === index ? '2px solid #c9a94d' : '1px solid #bcbcbc',
+                        borderRadius: '0px',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <img
+                        src={img}
+                        alt={`${charm.name} thumbnail ${index + 1}`}
+                        className="w-full h-20 object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              // Single image display
+              <div className="bg-white p-4" style={{ border: 'none', borderRadius: '0px' }}>
+                <img
+                  src={charm.images[0]}
+                  alt={charm.name}
+                  className="w-full h-96 object-cover"
+                />
               </div>
             )}
           </div>

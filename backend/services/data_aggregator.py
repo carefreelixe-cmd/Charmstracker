@@ -44,23 +44,21 @@ class DataAggregator:
             charm_name = charm['name']
             logger.info(f"Updating data for: {charm_name}")
             
-            # Fetch data from all sources in parallel
+            # Fetch data from James Avery and eBay only
             tasks = [
                 self._fetch_marketplace_data(charm_name, 'ebay'),
-                self._fetch_marketplace_data(charm_name, 'etsy'),
-                self._fetch_marketplace_data(charm_name, 'poshmark'),
                 self._fetch_james_avery_data(charm_name)
             ]
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
             ebay_data = results[0] if not isinstance(results[0], Exception) else []
-            etsy_data = results[1] if not isinstance(results[1], Exception) else []
-            poshmark_data = results[2] if not isinstance(results[2], Exception) else []
-            ja_data = results[3] if not isinstance(results[3], Exception) else None
+            ja_data = results[1] if not isinstance(results[1], Exception) else None
             
-            # Combine all listings
-            all_listings = ebay_data + etsy_data + poshmark_data
+            # Only use eBay listings
+            all_listings = ebay_data
+            
+            logger.info(f"Fetched {len(ebay_data)} eBay listings for {charm_name}")
             
             if not all_listings and not ja_data:
                 logger.warning(f"No data found for {charm_name}")
@@ -148,12 +146,21 @@ class DataAggregator:
                 update_data['status'] = ja_data['status']
                 update_data['is_retired'] = ja_data['is_retired']
             
+            # Store James Avery official price
+            if ja_data.get('official_price'):
+                update_data['james_avery_price'] = ja_data['official_price']
+                logger.info(f"💰 James Avery official price: ${ja_data['official_price']}")
+            
+            # Store James Avery URL
+            if ja_data.get('official_url'):
+                update_data['james_avery_url'] = ja_data['official_url']
+            
             # Handle images - ONLY use James Avery official images (preferred)
             james_avery_images = ja_data.get('images', [])
             if james_avery_images and len(james_avery_images) > 0:
                 # Use official James Avery images only
                 update_data['images'] = james_avery_images
-                logger.info(f"Using {len(james_avery_images)} James Avery official images")
+                logger.info(f"📷 Using {len(james_avery_images)} James Avery official images")
             else:
                 logger.info("No James Avery images found")
         
@@ -183,6 +190,11 @@ class DataAggregator:
         
         # Update listings
         if listings:
+            # Log eBay prices for debugging
+            logger.info(f"📊 eBay Listing Prices for {existing_charm.get('name', 'Unknown')}:")
+            for idx, listing in enumerate(listings[:5], 1):
+                logger.info(f"  {idx}. ${listing['price']:.2f} - {listing['condition']} - {listing['title'][:50]}")
+            
             # Format listings for database
             formatted_listings = []
             for listing in listings[:20]:  # Keep top 20
