@@ -20,37 +20,65 @@ class EbayScraper:
     
     def __init__(self):
         self.app_id = os.getenv('EBAY_APP_ID', '')  # Set in .env
-        self.base_url = "https://svcs.ebay.com/services/search/FindingService/v1"
+        self.use_web_scraping = os.getenv('USE_EBAY_WEB_SCRAPING', 'true').lower() == 'true'
+        
+        # Use Sandbox URL for testing with SBX credentials
+        is_sandbox = 'SBX' in self.app_id if self.app_id else False
+        if is_sandbox:
+            self.base_url = "https://svcs.sandbox.ebay.com/services/search/FindingService/v1"
+            logger.info("🧪 eBay Sandbox API detected - NOTE: Sandbox has no real listings!")
+            logger.info("   Using web scraping as primary method for real data")
+            self.use_web_scraping = True  # Force web scraping for sandbox
+        else:
+            self.base_url = "https://svcs.ebay.com/services/search/FindingService/v1"
+            logger.info("🔴 Using eBay PRODUCTION API")
+        
         self.search_url = "https://www.ebay.com/sch/i.html"
         
     async def search_charm(
         self, 
         charm_name: str, 
         limit: int = 20
-    ) -> List[Dict]:
+    ) -> Dict:
         """
         Search eBay for a specific charm
-        Returns list of listings with prices and details
+        Returns dict with 'listings' (list) and 'avg_price' (float)
         """
         try:
-            # If we have API key, use official API
-            if self.app_id:
-                return await self._search_with_api(charm_name, limit)
+            logger.info(f"🛒 [EBAY] Starting search for: {charm_name}")
+            
+            # Use web scraping as primary method (more reliable for real listings)
+            if self.use_web_scraping:
+                logger.info(f"   🌐 Using web scraping (primary method)")
+                result = await self._search_with_scraping(charm_name, limit)
+            elif self.app_id:
+                logger.info(f"   🔑 Using eBay API with app_id: {self.app_id[:20]}...")
+                result = await self._search_with_api(charm_name, limit)
             else:
                 # Fallback to web scraping
-                return await self._search_with_scraping(charm_name, limit)
+                logger.info(f"   🌐 No API key - using web scraping")
+                result = await self._search_with_scraping(charm_name, limit)
+            
+            if result and result.get('listings'):
+                logger.info(f"   ✅ [EBAY] Found {len(result['listings'])} listings, avg: ${result.get('avg_price', 0):.2f}")
+            else:
+                logger.warning(f"   ⚠️  [EBAY] No listings found for {charm_name}")
+            
+            return result
                 
         except Exception as e:
-            logger.error(f"Error searching eBay for {charm_name}: {str(e)}")
-            return []
+            logger.error(f"   ❌ [EBAY] Error searching for {charm_name}: {str(e)}")
+            return {'listings': [], 'avg_price': None}
     
     async def _search_with_api(
         self, 
         charm_name: str, 
         limit: int = 20
-    ) -> List[Dict]:
-        """Search using eBay Finding API"""
+    ) -> Dict:
+        """Search using eBay Finding API - returns dict with listings and avg_price"""
         try:
+            logger.info(f"🛒 [EBAY API] Searching for: {charm_name}")
+            
             params = {
                 'OPERATION-NAME': 'findItemsAdvanced',
                 'SERVICE-VERSION': '1.0.0',
@@ -58,71 +86,104 @@ class EbayScraper:
                 'RESPONSE-DATA-FORMAT': 'JSON',
                 'REST-PAYLOAD': '',
                 'keywords': f'James Avery {charm_name} charm',
-                'paginationInput.entriesPerPage': limit,
-                'sortOrder': 'EndTimeSoonest',
+                'paginationInput.entriesPerPage': min(limit, 100),
+                'sortOrder': 'BestMatch',
                 'itemFilter(0).name': 'Condition',
-                'itemFilter(0).value': 'New|Used',
-                'itemFilter(1).name': 'ListingType',
-                'itemFilter(1).value': 'FixedPrice|Auction',
+                'itemFilter(0).value(0)': 'New',
+                'itemFilter(0).value(1)': 'Used',
+                'itemFilter(1).name': 'MinPrice',
+                'itemFilter(1).value': '10',
+                'itemFilter(2).name': 'MaxPrice',
+                'itemFilter(2).value': '500',
             }
             
             async with aiohttp.ClientSession() as session:
-                async with session.get(self.base_url, params=params) as response:
+                async with session.get(self.base_url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    logger.info(f"   📡 eBay API Response Status: {response.status}")
+                    
                     if response.status == 200:
                         data = await response.json()
-                        return self._parse_api_response(data)
+                        return self._parse_api_response(data, charm_name)
                     else:
-                        logger.warning(f"eBay API returned status {response.status}")
-                        return []
+                        error_text = await response.text()
+                        logger.warning(f"   ⚠️  eBay API error {response.status}: {error_text[:200]}")
+                        # Fallback to web scraping
+                        logger.info(f"   🔄 Falling back to web scraping...")
+                        return await self._search_with_scraping(charm_name, limit)
                         
+        except asyncio.TimeoutError:
+            logger.error(f"   ⏱️  eBay API timeout - falling back to scraping")
+            return await self._search_with_scraping(charm_name, limit)
         except Exception as e:
-            logger.error(f"Error with eBay API: {str(e)}")
-            return []
+            logger.error(f"   ❌ Error with eBay API: {str(e)}")
+            logger.info(f"   🔄 Falling back to web scraping...")
+            return await self._search_with_scraping(charm_name, limit)
     
     async def _search_with_scraping(
         self, 
         charm_name: str, 
         limit: int = 20
-    ) -> List[Dict]:
-        """Fallback web scraping method"""
+    ) -> Dict:
+        """Fallback web scraping method - returns dict with listings and avg_price"""
         try:
+            logger.info(f"   🌐 [EBAY WEB] Scraping for: {charm_name}")
             search_query = f"James Avery {charm_name} charm"
             params = {
                 '_nkw': search_query,
                 '_sacat': '0',
-                'LH_Sold': '1',  # Sold listings
-                'LH_Complete': '1',  # Completed listings
+                'LH_Sold': '0',  # Active listings (not sold)
                 '_udlo': '10',  # Min price $10
                 '_udhi': '500',  # Max price $500
             }
             
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     self.search_url, 
                     params=params, 
-                    headers=headers
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=10)
                 ) as response:
+                    logger.info(f"   📡 eBay Web Response Status: {response.status}")
+                    
                     if response.status == 200:
                         html = await response.text()
-                        return self._parse_html_response(html, limit)
+                        listings = self._parse_html_response(html, limit)
+                        
+                        # Calculate average price
+                        avg_price = None
+                        if listings:
+                            total_price = sum(listing['price'] for listing in listings)
+                            avg_price = round(total_price / len(listings), 2)
+                            logger.info(f"   💰 [EBAY WEB] Average price: ${avg_price}")
+                        
+                        return {'listings': listings, 'avg_price': avg_price}
                     else:
-                        logger.warning(f"eBay scraping returned status {response.status}")
-                        return []
+                        logger.warning(f"   ⚠️  eBay scraping returned status {response.status}")
+                        return {'listings': [], 'avg_price': None}
                         
         except Exception as e:
-            logger.error(f"Error scraping eBay: {str(e)}")
-            return []
+            logger.error(f"   ❌ Error scraping eBay: {str(e)}")
+            return {'listings': [], 'avg_price': None}
     
-    def _parse_api_response(self, data: Dict) -> List[Dict]:
-        """Parse eBay API JSON response"""
+    def _parse_api_response(self, data: Dict, charm_name: str) -> Dict:
+        """Parse eBay API JSON response - returns dict with listings and avg_price"""
         listings = []
         try:
             search_result = data.get('findItemsAdvancedResponse', [{}])[0]
+            
+            # Check for errors
+            ack = search_result.get('ack', [''])[0]
+            if ack == 'Failure':
+                error_msg = search_result.get('errorMessage', [{}])[0]
+                logger.error(f"   ❌ eBay API Error: {error_msg}")
+                return {'listings': [], 'avg_price': None}
+            
             items = search_result.get('searchResult', [{}])[0].get('item', [])
+            logger.info(f"   📦 eBay API returned {len(items)} items")
             
             for item in items:
                 try:
@@ -149,15 +210,24 @@ class EbayScraper:
                     
                     if listing['price'] > 0:  # Valid price
                         listings.append(listing)
+                        logger.debug(f"      💵 ${listing['price']:.2f} - {listing['title'][:50]}")
                         
                 except Exception as e:
-                    logger.debug(f"Error parsing item: {str(e)}")
+                    logger.debug(f"      ⚠️  Error parsing item: {str(e)}")
                     continue
+            
+            # Calculate average price
+            avg_price = None
+            if listings:
+                total_price = sum(listing['price'] for listing in listings)
+                avg_price = round(total_price / len(listings), 2)
+                logger.info(f"   💰 [EBAY] Average price: ${avg_price}")
+            
+            return {'listings': listings, 'avg_price': avg_price}
                     
         except Exception as e:
-            logger.error(f"Error parsing API response: {str(e)}")
-            
-        return listings
+            logger.error(f"   ❌ Error parsing API response: {str(e)}")
+            return {'listings': [], 'avg_price': None}
     
     def _parse_html_response(self, html: str, limit: int) -> List[Dict]:
         """Parse eBay HTML response"""
