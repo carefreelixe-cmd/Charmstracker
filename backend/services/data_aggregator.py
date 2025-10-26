@@ -147,9 +147,39 @@ class DataAggregator:
             if ja_data.get('status'):
                 update_data['status'] = ja_data['status']
                 update_data['is_retired'] = ja_data['is_retired']
-            if ja_data.get('images'):
-                # Prefer official images
-                update_data['images'] = ja_data['images']
+            
+            # Handle images - ONLY use James Avery official images (preferred)
+            james_avery_images = ja_data.get('images', [])
+            if james_avery_images and len(james_avery_images) > 0:
+                # Use official James Avery images only
+                update_data['images'] = james_avery_images
+                logger.info(f"Using {len(james_avery_images)} James Avery official images")
+            else:
+                logger.info("No James Avery images found")
+        
+        # Only collect images from eBay listings (most preferred after James Avery)
+        if 'images' not in update_data or not update_data.get('images'):
+            ebay_images = []
+            for listing in listings:
+                if listing.get('platform') == 'eBay':
+                    img_url = listing.get('image_url', '')
+                    if img_url and img_url not in ebay_images:
+                        ebay_images.append(img_url)
+                        if len(ebay_images) >= 3:  # Max 3 eBay images
+                            break
+            
+            if ebay_images:
+                update_data['images'] = ebay_images
+                logger.info(f"Using {len(ebay_images)} images from eBay listings")
+            else:
+                # Keep existing images if no new ones found
+                existing_images = existing_charm.get('images', [])
+                if existing_images:
+                    update_data['images'] = existing_images
+                    logger.info(f"Keeping {len(existing_images)} existing images")
+                else:
+                    update_data['images'] = []
+                    logger.warning("No images available for charm")
         
         # Update listings
         if listings:

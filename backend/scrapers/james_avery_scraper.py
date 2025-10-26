@@ -58,22 +58,34 @@ class JamesAveryScraper:
             }
             
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
             }
             
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=30)
+            
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(
                     self.search_url, 
                     params=params, 
-                    headers=headers
+                    headers=headers,
+                    allow_redirects=True
                 ) as response:
                     if response.status == 200:
                         html = await response.text()
-                        return self._parse_search_results(html)
+                        results = self._parse_search_results(html)
+                        logger.info(f"Found {len(results)} results for '{charm_name}'")
+                        return results
+                    else:
+                        logger.warning(f"Search returned status {response.status}")
                     return []
                     
         except Exception as e:
-            logger.error(f"Error searching James Avery: {str(e)}")
+            logger.error(f"Error searching James Avery: {str(e)}", exc_info=True)
             return []
     
     def _parse_search_results(self, html: str) -> List[Dict]:
@@ -82,36 +94,91 @@ class JamesAveryScraper:
         try:
             soup = BeautifulSoup(html, 'html.parser')
             
-            # Find product tiles
+            # Find product tiles - try multiple selectors
             products = soup.find_all('div', class_=re.compile(r'product-tile'))
             
-            for product in products:
+            # If no product tiles, try alternative selectors
+            if not products:
+                products = soup.find_all('div', class_=re.compile(r'product-item|product-card|product'))
+            
+            # Also try looking for links with product URLs
+            if not products:
+                products = soup.find_all('a', href=re.compile(r'/products/'))
+            
+            logger.info(f"Found {len(products)} potential product elements")
+            
+            for idx, product in enumerate(products):
                 try:
-                    # Extract URL
-                    link = product.find('a', class_=re.compile(r'product-tile__link'))
-                    if not link:
-                        link = product.find('a', href=re.compile(r'/products/'))
-                    
+                    # Extract URL - try multiple methods
+                    link = None
                     url = ''
+                    
+                    # Method 1: Find link with product-related class
+                    link = product.find('a', class_=re.compile(r'product-tile__link|product-link|tile-link'))
+                    
+                    # Method 2: Find any link with /products/ in href
+                    if not link:
+                        link = product.find('a', href=re.compile(r'/products/|/product/'))
+                    
+                    # Method 3: If the product element itself is a link
+                    if not link and product.name == 'a':
+                        link = product
+                    
+                    # Method 4: Find ANY link inside the product element
+                    if not link:
+                        link = product.find('a')
+                    
                     if link:
                         url = link.get('href', '')
                         if url and not url.startswith('http'):
                             url = f"{self.base_url}{url}"
                     
-                    # Extract title
-                    title_elem = product.find('h3', class_=re.compile(r'product-tile__name'))
+                    # Extract title - try multiple methods
+                    title = ''
+                    
+                    # Method 1: Look for title in common heading tags
+                    title_elem = product.find('h3', class_=re.compile(r'product-tile__name|product-name|product-title|name|title'))
                     if not title_elem:
-                        title_elem = product.find('a', class_=re.compile(r'product-tile__link'))
+                        title_elem = product.find(['h1', 'h2', 'h3', 'h4', 'h5'])
                     
-                    title = title_elem.text.strip() if title_elem else ''
+                    # Method 2: Look for product name in spans or divs
+                    if not title_elem:
+                        title_elem = product.find(['span', 'div'], class_=re.compile(r'name|title|product-name'))
                     
-                    # Extract image
+                    # Method 3: Try aria-label or title attribute on link
+                    if not title_elem and link:
+                        title = link.get('aria-label', '') or link.get('title', '')
+                        if not title:
+                            title_elem = link
+                    
+                    # Method 4: Extract from image alt text as fallback
+                    if not title and not title_elem:
+                        img = product.find('img')
+                        if img:
+                            title = img.get('alt', '')
+                    
+                    if title_elem and not title:
+                        title = title_elem.text.strip()
+                    
+                    # Extract image - try multiple attributes
                     img_elem = product.find('img')
                     image = ''
                     if img_elem:
-                        image = img_elem.get('src', img_elem.get('data-src', ''))
-                        if image and not image.startswith('http'):
-                            image = f"{self.base_url}{image}"
+                        # Try different image attributes
+                        image = (img_elem.get('src') or 
+                                img_elem.get('data-src') or 
+                                img_elem.get('data-lazy-src') or 
+                                img_elem.get('data-zoom-src') or '')
+                        
+                        # Clean and format URL - filter out generic images
+                        if image:
+                            image_lower = image.lower()
+                            # Filter out navigation/generic images
+                            exclude_patterns = ['placeholder', 'loading', 'flyout', 'navigation', 'nav-', 'menu', 'logo', 'banner']
+                            if any(pattern in image_lower for pattern in exclude_patterns):
+                                image = ''
+                            elif not image.startswith('http'):
+                                image = f"{self.base_url}{image}"
                     
                     if url and title:
                         results.append({
@@ -119,13 +186,16 @@ class JamesAveryScraper:
                             'title': title,
                             'image': image
                         })
+                        logger.debug(f"Result {idx+1}: {title} - Image: {bool(image)}")
+                    else:
+                        logger.debug(f"Skipped element {idx+1}: url={bool(url)}, title={bool(title)}")
                         
                 except Exception as e:
-                    logger.debug(f"Error parsing search result: {str(e)}")
+                    logger.debug(f"Error parsing search result {idx}: {str(e)}")
                     continue
                     
         except Exception as e:
-            logger.error(f"Error parsing search results: {str(e)}")
+            logger.error(f"Error parsing search results: {str(e)}", exc_info=True)
             
         return results
     
@@ -133,18 +203,27 @@ class JamesAveryScraper:
         """Fetch and parse product detail page"""
         try:
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
             }
             
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers) as response:
+            timeout = aiohttp.ClientTimeout(total=30)
+            
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, headers=headers, allow_redirects=True) as response:
                     if response.status == 200:
                         html = await response.text()
                         return self._parse_product_page(html, url)
+                    else:
+                        logger.warning(f"Product page returned status {response.status}")
                     return None
                     
         except Exception as e:
-            logger.error(f"Error fetching product page: {str(e)}")
+            logger.error(f"Error fetching product page: {str(e)}", exc_info=True)
             return None
     
     def _parse_product_page(self, html: str, url: str) -> Optional[Dict]:
@@ -211,32 +290,87 @@ class JamesAveryScraper:
             # Extract images
             images = []
             
-            # Try to find image gallery
-            gallery = soup.find('div', class_=re.compile(r'product-carousel'))
-            if not gallery:
-                gallery = soup.find('div', class_=re.compile(r'product-images'))
-            
-            if gallery:
-                img_elements = gallery.find_all('img')
-                for img in img_elements:
-                    img_url = img.get('src', img.get('data-src', ''))
-                    if img_url and 'placeholder' not in img_url.lower():
-                        if not img_url.startswith('http'):
-                            img_url = f"{self.base_url}{img_url}"
-                        images.append(img_url)
-            
-            # If no gallery, try main product image
-            if not images:
-                main_img = soup.find('img', class_=re.compile(r'product-image'))
-                if not main_img:
-                    main_img = soup.find('img', {'itemprop': 'image'})
+            # Helper function to check if image URL is valid product image
+            def is_valid_product_image(img_url):
+                if not img_url:
+                    return False
+                # Skip data URIs and invalid URLs
+                if img_url.startswith('data:') or len(img_url) < 10:
+                    return False
+                img_url_lower = img_url.lower()
+                # Filter out generic/navigation/promotional images
+                exclude_patterns = [
+                    'placeholder', 'logo', 'banner', 'navigation', 
+                    'flyout', 'global-navigation', 'nav-', 'menu',
+                    'icon', 'sprite', 'back_to_top', 'cross.svg',
+                    'search.svg', 'wishlist.svg', 'location', 'account',
+                    'magnifying', 'gift-central', 'category-thumbnail'
+                ]
+                # Also check if it's a product images directory
+                has_product_path = any(path in img_url_lower for path in ['/pdp/', '/products/', '-catalog/', 'items/', 'charms/'])
+                exclude_match = any(pattern in img_url_lower for pattern in exclude_patterns)
                 
-                if main_img:
-                    img_url = main_img.get('src', main_img.get('data-src', ''))
-                    if img_url:
+                return has_product_path or not exclude_match
+            
+            # Method 1: Look for JSON-LD structured data (most reliable)
+            try:
+                json_ld = soup.find('script', {'type': 'application/ld+json'})
+                if json_ld:
+                    import json
+                    data = json.loads(json_ld.string)
+                    if isinstance(data, dict):
+                        img_url = data.get('image', '')
+                        if isinstance(img_url, list) and len(img_url) > 0:
+                            img_url = img_url[0]
+                        if is_valid_product_image(img_url):
+                            if not img_url.startswith('http'):
+                                img_url = f"{self.base_url}{img_url}"
+                            images.append(img_url)
+            except:
+                pass
+            
+            # Method 2: Look for meta property="og:image"
+            if not images:
+                og_image = soup.find('meta', property='og:image')
+                if og_image:
+                    img_url = og_image.get('content', '')
+                    if is_valid_product_image(img_url):
                         if not img_url.startswith('http'):
                             img_url = f"{self.base_url}{img_url}"
                         images.append(img_url)
+            
+            # Method 3: Find images in product carousel with data attributes
+            if not images:
+                carousel = soup.find('div', class_=re.compile(r'product-carousel'))
+                if carousel:
+                    # Look for images with data-zoom-url or similar
+                    imgs = carousel.find_all('img')
+                    for img in imgs:
+                        # Check multiple data attributes (James Avery uses lazy loading)
+                        img_url = (img.get('data-zoom-url') or 
+                                  img.get('data-src') or 
+                                  img.get('data-lazy-src') or
+                                  img.get('data-zoom-src') or
+                                  img.get('src') or '')
+                        
+                        if is_valid_product_image(img_url):
+                            if not img_url.startswith('http'):
+                                img_url = f"{self.base_url}{img_url}"
+                            if img_url not in images:
+                                images.append(img_url)
+            
+            # Method 4: Look for itemprop="image" 
+            if not images:
+                schema_imgs = soup.find_all(['img', 'meta'], {'itemprop': 'image'})
+                for elem in schema_imgs:
+                    img_url = elem.get('content', elem.get('src', elem.get('data-src', '')))
+                    if is_valid_product_image(img_url):
+                        if not img_url.startswith('http'):
+                            img_url = f"{self.base_url}{img_url}"
+                        if img_url not in images:
+                            images.append(img_url)
+                            if len(images) >= 3:
+                                break
             
             # Return structured data
             product_data = {
@@ -250,6 +384,10 @@ class JamesAveryScraper:
                 'official_url': url,
                 'scraped_at': datetime.utcnow()
             }
+            
+            logger.info(f"Parsed product: {name} - Found {len(images)} images")
+            if images:
+                logger.debug(f"Image URLs: {images}")
             
             return product_data if name else None
             
