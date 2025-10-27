@@ -60,16 +60,19 @@ class DataAggregator:
             
             logger.info(f"Fetched {len(ebay_data)} eBay listings for {charm_name}")
             
-            if not all_listings and not ja_data:
-                logger.warning(f"No data found for {charm_name}")
-                return False
-            
-            # Calculate aggregated data
+            # Calculate aggregated data (even if no listings - we can use fallback)
             update_data = await self._calculate_aggregated_data(
                 charm, 
                 all_listings, 
                 ja_data
             )
+            
+            # If no data at all, just update timestamp
+            if not all_listings and not ja_data:
+                logger.warning(f"No new data found for {charm_name}, keeping existing data")
+                update_data = {
+                    "last_updated": datetime.utcnow()
+                }
             
             # Update database
             result = await self.db.charms.update_one(
@@ -95,7 +98,16 @@ class DataAggregator:
             if not scraper:
                 return []
             
-            listings = await scraper.search_charm(charm_name, limit=20)
+            result = await scraper.search_charm(charm_name, limit=20)
+            
+            # Handle both dict and list returns (eBay returns dict, others may return list)
+            if isinstance(result, dict):
+                listings = result.get('listings', [])
+            elif isinstance(result, list):
+                listings = result
+            else:
+                listings = []
+            
             logger.info(f"Found {len(listings)} listings on {platform}")
             return listings
             
@@ -280,6 +292,48 @@ class DataAggregator:
                     existing_charm.get('popularity', 50), 
                     popularity
                 )
+        else:
+            # No listings found - use fallback data
+            logger.warning(f"⚠️  No listings found for {existing_charm.get('name', 'Unknown')}")
+            
+            # Use James Avery official price as fallback if available
+            if ja_data and ja_data.get('official_price'):
+                fallback_price = ja_data['official_price']
+                logger.info(f"   💰 Using James Avery official price as fallback: ${fallback_price}")
+                update_data['avg_price'] = fallback_price
+                
+                # Create a fallback listing from James Avery
+                update_data['listings'] = [{
+                    'platform': 'James Avery',
+                    'title': ja_data.get('name', existing_charm.get('name', 'Unknown')),
+                    'price': fallback_price,
+                    'url': ja_data.get('official_url', ''),
+                    'condition': 'New',
+                    'image_url': ja_data.get('images', [''])[0] if ja_data.get('images') else '',
+                    'seller': 'James Avery Official',
+                    'shipping': 0.0,
+                    'scraped_at': datetime.utcnow()
+                }]
+            elif existing_charm.get('avg_price'):
+                # Keep existing average price if available
+                fallback_price = existing_charm['avg_price']
+                logger.info(f"   💰 Keeping existing average price: ${fallback_price}")
+                update_data['avg_price'] = fallback_price
+            else:
+                # Use a generic fallback based on material
+                material = existing_charm.get('material', 'Silver')
+                fallback_price = 75.0 if material == 'Silver' else 250.0
+                logger.info(f"   💰 Using generic {material} fallback price: ${fallback_price}")
+                update_data['avg_price'] = fallback_price
+                update_data['listings'] = []
+            
+            # Keep existing price history
+            existing_history = existing_charm.get('price_history', [])
+            if existing_history:
+                update_data['price_history'] = existing_history
+                # Recalculate price changes with fallback price
+                price_changes = self._calculate_price_changes(existing_history, update_data['avg_price'])
+                update_data.update(price_changes)
         
         return update_data
     

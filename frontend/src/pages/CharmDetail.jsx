@@ -366,6 +366,20 @@ export const CharmDetail = () => {
                 <span className="text-4xl font-semibold" style={{ color: '#333333' }}>
                   ${charm.avg_price.toFixed(2)}
                 </span>
+                {(!charm.listings || charm.listings.length === 0) && (
+                  <span 
+                    className="text-sm px-3 py-1" 
+                    style={{ 
+                      background: '#f6f5e8', 
+                      color: '#666666',
+                      border: '1px solid #bcbcbc',
+                      borderRadius: '0px'
+                    }}
+                    title="Price from James Avery official or historical data"
+                  >
+                    Estimated
+                  </span>
+                )}
                 <div
                   className="flex items-center gap-1 text-lg font-medium"
                   style={{ color: charm.price_change_7d >= 0 ? '#2d8659' : '#ba3e2b' }}
@@ -379,7 +393,10 @@ export const CharmDetail = () => {
                 </div>
               </div>
               <p className="body-small" style={{ color: '#666666' }}>
-                Average market price from live listings
+                {charm.listings && charm.listings.length > 0 
+                  ? `Average market price from ${charm.listings.length} live listings`
+                  : 'Price based on James Avery official pricing or historical data'
+                }
               </p>
             </div>
 
@@ -456,7 +473,7 @@ export const CharmDetail = () => {
         )}
 
         {/* Active Listings */}
-        {charm.listings && charm.listings.length > 0 && (
+        {charm.listings && charm.listings.length > 0 ? (
           <div className="mb-16">
             <div className="flex items-center justify-between mb-6">
               <h2 className="heading-2">Active Listings ({charm.listings.length})</h2>
@@ -500,6 +517,53 @@ export const CharmDetail = () => {
                   )}
                 </a>
               ))}
+            </div>
+          </div>
+        ) : (
+          <div className="mb-16 bg-white p-8" style={{ border: '1px solid #bcbcbc', borderRadius: '0px' }}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="heading-2">Active Listings</h2>
+              <span className="body-small" style={{ color: '#666666' }}>
+                Updated {realtimeUtils.timeSinceUpdate(charm.last_updated)}
+              </span>
+            </div>
+            <div className="text-center py-8">
+              <AlertCircle className="w-12 h-12 mx-auto mb-4" style={{ color: '#c9a94d' }} />
+              <h3 className="heading-3 mb-2">No Active Listings Found</h3>
+              <p className="body-regular mb-4" style={{ color: '#666666' }}>
+                We couldn't find any active marketplace listings for this charm at the moment.
+              </p>
+              {charm.james_avery_price && (
+                <div className="bg-gray-50 p-6 max-w-md mx-auto" style={{ borderRadius: '0px' }}>
+                  <p className="body-small mb-2" style={{ color: '#666666' }}>
+                    Official James Avery Price
+                  </p>
+                  <p className="text-3xl font-semibold mb-3" style={{ color: '#333333' }}>
+                    ${charm.james_avery_price.toFixed(2)}
+                  </p>
+                  {charm.james_avery_url && (
+                    <a
+                      href={charm.james_avery_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-6 py-3 transition-smooth"
+                      style={{
+                        background: '#c9a94d',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '0px',
+                        textDecoration: 'none'
+                      }}
+                    >
+                      View on James Avery
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+              )}
+              <p className="body-small mt-6" style={{ color: '#999999' }}>
+                Try checking back later or use the refresh button to search for new listings.
+              </p>
             </div>
           </div>
         )}

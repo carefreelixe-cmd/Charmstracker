@@ -124,9 +124,25 @@ export const MarketDataTable = () => {
 
                   {/* Avg Price */}
                   <td className="px-6 py-4">
-                    <span className="text-lg font-semibold" style={{ color: '#333333' }}>
-                      ${charm.avg_price.toFixed(2)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-semibold" style={{ color: '#333333' }}>
+                        ${charm.avg_price.toFixed(2)}
+                      </span>
+                      {(!charm.listings || charm.listings.length === 0) && (
+                        <span 
+                          className="text-xs px-2 py-0.5" 
+                          style={{ 
+                            background: '#f6f5e8', 
+                            color: '#666666',
+                            border: '1px solid #bcbcbc',
+                            borderRadius: '0px'
+                          }}
+                          title="Price from James Avery or historical data"
+                        >
+                          Est.
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* 7d Change */}

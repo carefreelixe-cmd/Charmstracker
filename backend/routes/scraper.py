@@ -136,20 +136,30 @@ async def check_marketplace_availability(charm_name: str):
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
+        # Helper function to extract listing count
+        def get_listing_count(result):
+            if isinstance(result, Exception):
+                return 0
+            elif isinstance(result, dict):
+                return len(result.get('listings', []))
+            elif isinstance(result, list):
+                return len(result)
+            return 0
+        
         return {
             "charm_name": charm_name,
             "availability": {
                 "ebay": {
-                    "available": len(results[0]) > 0 if not isinstance(results[0], Exception) else False,
-                    "listing_count": len(results[0]) if not isinstance(results[0], Exception) else 0
+                    "available": get_listing_count(results[0]) > 0,
+                    "listing_count": get_listing_count(results[0])
                 },
                 "etsy": {
-                    "available": len(results[1]) > 0 if not isinstance(results[1], Exception) else False,
-                    "listing_count": len(results[1]) if not isinstance(results[1], Exception) else 0
+                    "available": get_listing_count(results[1]) > 0,
+                    "listing_count": get_listing_count(results[1])
                 },
                 "poshmark": {
-                    "available": len(results[2]) > 0 if not isinstance(results[2], Exception) else False,
-                    "listing_count": len(results[2]) if not isinstance(results[2], Exception) else 0
+                    "available": get_listing_count(results[2]) > 0,
+                    "listing_count": get_listing_count(results[2])
                 }
             },
             "checked_at": datetime.utcnow().isoformat()
