@@ -106,23 +106,9 @@ async def startup_event():
         await start_scheduler(db)
         logger.info("✅ Background scheduler started successfully")
         
-        # Run initial update for all charms on startup
-        logger.info("🔄 Running initial charm data update...")
-        from services.data_aggregator import DataAggregator
-        aggregator = DataAggregator(db)
-        
-        # Update all charms in background (don't wait for completion)
-        async def initial_update():
-            try:
-                stats = await aggregator.update_all_charms(limit=None)
-                logger.info(f"✅ Initial update complete: {stats}")
-            except Exception as e:
-                logger.error(f"❌ Error in initial update: {str(e)}")
-        
-        # Run in background without blocking startup
-        import asyncio
-        asyncio.create_task(initial_update())
-        logger.info("🎯 Initial update running in background...")
+        # NOTE: Removed automatic scraping on startup
+        # Use add_fallback_listings.py script to populate data manually
+        # Or trigger updates via API: POST /api/scraper/update-all
         
     except Exception as e:
         logger.error(f"❌ Failed to start scheduler: {str(e)}")
