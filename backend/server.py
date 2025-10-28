@@ -99,11 +99,33 @@ logger = logging.getLogger(__name__)
 async def startup_event():
     """Start background scheduler on app startup"""
     try:
+        logger.info("🚀 Starting CharmTracker API...")
+        
+        # Start background scheduler
         logger.info("Starting background scheduler...")
         await start_scheduler(db)
-        logger.info("Background scheduler started successfully")
+        logger.info("✅ Background scheduler started successfully")
+        
+        # Run initial update for all charms on startup
+        logger.info("🔄 Running initial charm data update...")
+        from services.data_aggregator import DataAggregator
+        aggregator = DataAggregator(db)
+        
+        # Update all charms in background (don't wait for completion)
+        async def initial_update():
+            try:
+                stats = await aggregator.update_all_charms(limit=None)
+                logger.info(f"✅ Initial update complete: {stats}")
+            except Exception as e:
+                logger.error(f"❌ Error in initial update: {str(e)}")
+        
+        # Run in background without blocking startup
+        import asyncio
+        asyncio.create_task(initial_update())
+        logger.info("🎯 Initial update running in background...")
+        
     except Exception as e:
-        logger.error(f"Failed to start scheduler: {str(e)}")
+        logger.error(f"❌ Failed to start scheduler: {str(e)}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
