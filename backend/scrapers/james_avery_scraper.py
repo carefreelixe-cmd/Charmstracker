@@ -1,16 +1,32 @@
 """
-James Avery Website Scraper for CharmTracker
+Enhanced James Avery Website Scraper for CharmTracker
 Fetches official product details, images, and retired status
 """
 
 import logging
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Set
 from datetime import datetime
 import aiohttp
 from bs4 import BeautifulSoup
 import re
+import asyncio
+import json
+import os
+import time
+from urllib.parse import urljoin
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv('.env.scraper')
 
 logger = logging.getLogger(__name__)
+
+# Constants
+DELAY = float(os.getenv('SCRAPER_DELAY', '2'))  # Delay between requests
+TIMEOUT = int(os.getenv('REQUEST_TIMEOUT', '30'))
+USER_AGENT = os.getenv('USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+# Only use proxy if properly configured
+PROXY = os.getenv('AIOHTTP_PROXY') if os.getenv('AIOHTTP_PROXY', '').startswith(('http://', 'https://')) else None
 
 
 class JamesAveryScraper:
@@ -18,7 +34,325 @@ class JamesAveryScraper:
     
     def __init__(self):
         self.base_url = "https://www.jamesavery.com"
+        self.browse_url = f"{self.base_url}/charms"
         self.search_url = f"{self.base_url}/search"
+        self.headers = {
+            'User-Agent': USER_AGENT,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+        }
+        self.session = None
+        self.last_request_time = 0  # Track time of last request for rate limiting
+        self.timeout = aiohttp.ClientTimeout(total=TIMEOUT)
+        
+    async def __aenter__(self):
+        """Set up async context manager"""
+        if not self.session:
+            connector = aiohttp.TCPConnector(ssl=False, limit=5)
+            self.session = aiohttp.ClientSession(
+                connector=connector,
+                timeout=self.timeout,
+                trust_env=True
+            )
+        return self
+        
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Clean up async context manager"""
+        if self.session:
+            await self.session.close()
+            self.session = None
+        
+    async def _make_request(self, url: str, params: Optional[Dict] = None) -> Optional[str]:
+        """Make an HTTP request with retry logic and adaptive rate limiting"""
+        MAX_RETRIES = 3
+        MIN_DELAY = DELAY
+        MAX_DELAY = DELAY * 10
+        
+        if not self.session:
+            await self.__aenter__()
+        
+        # Ensure minimum delay between requests
+        current_time = time.time()
+        time_since_last = current_time - self.last_request_time
+        if time_since_last < MIN_DELAY:
+            await asyncio.sleep(MIN_DELAY - time_since_last)
+            
+        for attempt in range(MAX_RETRIES):
+            try:
+                self.last_request_time = time.time()
+                delay = MIN_DELAY * (2 ** attempt)  # Exponential backoff
+                delay = min(delay, MAX_DELAY)
+                
+                request_kwargs = {
+                    'params': params,
+                    'headers': self.headers,
+                    'allow_redirects': True
+                }
+                if PROXY:
+                    request_kwargs['proxy'] = PROXY
+                    
+                async with self.session.get(url, **request_kwargs) as response:
+                    if response.status == 200:
+                        content = await response.text()
+                        # Log successful request timing
+                        duration = time.time() - self.last_request_time
+                        logger.debug(f"Request to {url} completed in {duration:.2f}s")
+                        return content
+                        
+                    elif response.status == 429:  # Too Many Requests
+                        logger.warning(f"Rate limited on attempt {attempt + 1}")
+                        # Get retry_after from headers or use exponential backoff
+                        retry_after = int(response.headers.get('Retry-After', delay))
+                        retry_delay = max(retry_after, delay)
+                        logger.info(f"Waiting {retry_delay}s before retry")
+                        await asyncio.sleep(retry_delay)
+                        continue
+                        
+                    elif response.status >= 500:
+                        logger.warning(f"Server error {response.status} on attempt {attempt + 1}")
+                        await asyncio.sleep(delay)
+                        continue
+                        
+                    else:
+                        logger.warning(f"Request failed with status {response.status}")
+                        if attempt == MAX_RETRIES - 1:
+                            return None
+                        await asyncio.sleep(delay)
+                        
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                logger.error(f"Network error on attempt {attempt + 1}: {str(e)}")
+                if attempt == MAX_RETRIES - 1:
+                    raise
+                await asyncio.sleep(delay)
+                
+            except Exception as e:
+                logger.error(f"Unexpected error on attempt {attempt + 1}: {str(e)}")
+                if attempt == MAX_RETRIES - 1:
+                    raise
+                await asyncio.sleep(delay)
+                
+        return None
+        
+    async def get_all_charms(self) -> List[Dict]:
+        """
+        Fetch all charms from James Avery website
+        Returns complete list of charms with details
+        """
+        all_charms = []
+        try:
+            logger.info("Starting charm collection process...")
+            
+            # Get initial charm listing page
+            html = await self._make_request(self.browse_url)
+            if not html:
+                logger.error("Failed to get main charms page")
+                return []
+            
+            # Parse category URLs
+            soup = BeautifulSoup(html, 'html.parser')
+            category_links = set()
+            
+            # Direct category URLs - these are the main charm categories
+            MAIN_CATEGORIES = [
+                'heart-charms',
+                'religious-charms',
+                'animal-charms',
+                'birthstone-charms',
+                'charm-letters',
+                'seasonal-charms',
+                'travel-charms',
+                'hobby-charms',
+                'milestone-charms'
+            ]
+            
+            # Add main categories first
+            category_urls = [f"{self.base_url}/charms/{category}" for category in MAIN_CATEGORIES]
+            
+            # Backup method: Parse from navigation
+            nav_urls = set()
+            # Method 1: Navigation menu
+            for nav in soup.find_all(['nav', 'ul', 'div'], {'class': re.compile(r'.*nav.*|.*menu.*')}):
+                for link in nav.find_all('a', href=re.compile(r'/charms/[^/]+/?$')):
+                    if link.get('href'):
+                        nav_urls.add(urljoin(self.base_url, link['href']))
+            
+            # Method 2: Category grid/list
+            for container in soup.find_all('div', {'class': re.compile(r'.*category.*|.*grid.*|.*list.*')}):
+                for link in container.find_all('a', href=re.compile(r'/charms/[^/]+/?$')):
+                    if link.get('href'):
+                        nav_urls.add(urljoin(self.base_url, link['href']))
+            
+            # Combine both sets of URLs
+            category_urls.extend(list(nav_urls))
+            category_urls = list(set(category_urls))  # Remove duplicates
+            
+            # Filter out non-charm categories
+            category_urls = [url for url in category_urls 
+                           if '/charms/' in url and 'collection' not in url.lower()]
+            
+            logger.info(f"Found {len(category_urls)} category URLs")
+            
+            # Process each category
+            all_product_urls = set()
+            MAX_PAGES_PER_CATEGORY = 50  # Reasonable limit to avoid infinite loops
+            
+            for category_url in category_urls:
+                page = 1
+                consecutive_empty_pages = 0
+                
+                while page <= MAX_PAGES_PER_CATEGORY:
+                    url = f"{category_url}?page={page}"
+                    html = await self._make_request(url)
+                    
+                    if not html:
+                        logger.warning(f"Failed to fetch page {page} of {category_url}")
+                        break
+                    
+                    soup = BeautifulSoup(html, 'html.parser')
+                    product_links = set()
+                    
+                    # Find product containers
+                    for container in soup.find_all('div', {'class': re.compile(r'.*product.*')}):
+                        link = container.find('a', href=re.compile(r'/charms/.*\.html'))
+                        if link and link.get('href'):
+                            product_urls = urljoin(self.base_url, link['href'])
+                            product_links.add(product_urls)
+                    
+                    # If no products found on consecutive pages, stop
+                    if not product_links:
+                        consecutive_empty_pages += 1
+                        if consecutive_empty_pages >= 2:
+                            logger.info(f"No more products found in category {category_url} after {page} pages")
+                            break
+                    else:
+                        consecutive_empty_pages = 0
+                        all_product_urls.update(product_links)
+                        logger.info(f"Found {len(product_links)} products on page {page} of category {category_url}")
+                    
+                    page += 1
+                    await asyncio.sleep(DELAY)  # Respect rate limits
+                
+                if page > MAX_PAGES_PER_CATEGORY:
+                    logger.warning(f"Reached maximum page limit for category {category_url}")
+            
+            logger.info(f"Found {len(all_product_urls)} total charm URLs")            # Fetch details for each charm in parallel batches
+            all_charms = []
+            batch_size = 5  # Process 5 charms at a time
+            
+            for i in range(0, len(all_product_urls), batch_size):
+                batch_urls = list(all_product_urls)[i:i + batch_size]
+                tasks = [self._get_product_page(url) for url in batch_urls]
+                batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # Filter out errors and add successful results
+                valid_results = [
+                    result for result in batch_results 
+                    if isinstance(result, dict)
+                ]
+                all_charms.extend(valid_results)
+                
+                logger.info(f"Processed {len(all_charms)}/{len(all_product_urls)} charms")
+                await asyncio.sleep(DELAY)  # Delay between batches
+            
+            return all_charms
+            
+        except Exception as e:
+            logger.error(f"Error fetching all charms: {str(e)}")
+            return []
+            
+    async def _get_category_urls(self) -> List[str]:
+        """Get all charm category URLs"""
+        try:
+            html = await self._make_request(self.browse_url)
+            if html:
+                soup = BeautifulSoup(html, 'html.parser')
+                # Find category links - look for links in the navigation or category sections
+                category_links = []
+                
+                # Method 1: Try navigation menu
+                nav_menu = soup.find('nav', {'class': re.compile(r'.*navigation.*')})
+                if nav_menu:
+                    category_links.extend(nav_menu.find_all('a', href=re.compile(r'/charms/.*')))
+                
+                # Method 2: Try category grid/list
+                category_grid = soup.find('div', {'class': re.compile(r'.*(categories|grid|list).*')})
+                if category_grid:
+                    category_links.extend(category_grid.find_all('a', href=re.compile(r'/charms/.*')))
+                
+                # Method 3: Try direct category links
+                category_links.extend(soup.find_all('a', href=re.compile(r'/charms/[^/]+$')))
+                
+                category_urls = [
+                    urljoin(self.base_url, link['href'])
+                    for link in category_links
+                    if '/charms/' in link['href'] and 'collection' not in link['href'].lower()
+                ]
+                
+                return list(set(category_urls))
+            return []
+                    
+        except Exception as e:
+            logger.error(f"Error getting category URLs: {str(e)}")
+            return []
+            
+    async def _get_product_urls_from_category(self, category_url: str) -> Set[str]:
+        """Get all product URLs from a category page"""
+        product_urls = set()
+        page = 1
+        
+        while True:
+            try:
+                url = f"{category_url}?page={page}"
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, headers=self.headers) as response:
+                        if response.status != 200:
+                            break
+                            
+                        html = await response.text()
+                        soup = BeautifulSoup(html, 'html.parser')
+                        
+                        # Find product links - try multiple selectors
+                        links = []
+                        
+                        # Method 1: Product grid items
+                        product_grid = soup.find('div', {'class': re.compile(r'.*(product-grid|products-grid).*')})
+                        if product_grid:
+                            links.extend(product_grid.find_all('a', href=re.compile(r'/charms/.*\.html')))
+                        
+                        # Method 2: Product list items
+                        product_list = soup.find_all('div', {'class': re.compile(r'.*product-item.*')})
+                        for item in product_list:
+                            if item_link := item.find('a', href=re.compile(r'/charms/.*\.html')):
+                                links.append(item_link)
+                        
+                        # Method 3: Direct product links
+                        links.extend(soup.find_all('a', href=re.compile(r'/charms/[^/]+/[^/]+\.html')))
+                        
+                        page_urls = {
+                            urljoin(self.base_url, link['href'])
+                            for link in links
+                            if 'charms' in link['href'] and '.html' in link['href']
+                        }
+                        
+                        if not page_urls:
+                            break
+                            
+                        product_urls.update(page_urls)
+                        page += 1
+                        
+                        # Small delay between pages
+                        await asyncio.sleep(0.5)
+                        
+            except Exception as e:
+                logger.error(f"Error on category page {page}: {str(e)}")
+                break
+                
+        return product_urls
         
     async def get_charm_details(
         self, 
@@ -202,25 +536,10 @@ class JamesAveryScraper:
     async def _get_product_page(self, url: str) -> Optional[Dict]:
         """Fetch and parse product detail page"""
         try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1'
-            }
-            
-            timeout = aiohttp.ClientTimeout(total=30)
-            
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url, headers=headers, allow_redirects=True) as response:
-                    if response.status == 200:
-                        html = await response.text()
-                        return self._parse_product_page(html, url)
-                    else:
-                        logger.warning(f"Product page returned status {response.status}")
-                    return None
+            html = await self._make_request(url)
+            if html:
+                return self._parse_product_page(html, url)
+            return None
                     
         except Exception as e:
             logger.error(f"Error fetching product page: {str(e)}", exc_info=True)
@@ -230,6 +549,17 @@ class JamesAveryScraper:
         """Parse product detail page"""
         try:
             soup = BeautifulSoup(html, 'html.parser')
+            
+            # Try to extract JSON-LD first
+            json_ld = None
+            for script in soup.find_all('script', {'type': 'application/ld+json'}):
+                try:
+                    data = json.loads(script.string)
+                    if isinstance(data, dict) and data.get('@type') == 'Product':
+                        json_ld = data
+                        break
+                except:
+                    continue
             
             # Extract product name
             name_elem = soup.find('h1', class_=re.compile(r'product-name'))
@@ -243,15 +573,104 @@ class JamesAveryScraper:
                 desc_elem = soup.find('div', {'itemprop': 'description'})
             description = desc_elem.text.strip() if desc_elem else ''
             
-            # Extract material
-            material = 'Silver'  # Default
-            material_elem = soup.find('span', class_=re.compile(r'material'))
-            if material_elem:
-                material_text = material_elem.text.lower()
-                if 'gold' in material_text:
-                    material = 'Gold'
-            elif 'gold' in name.lower() or 'gold' in description.lower():
-                material = 'Gold'
+            # Extract SKU and material
+            sku = None
+            material = None
+            
+            # Try to get SKU from URL first (most reliable)
+            sku_match = re.search(r'/(?:CM|MS|KIT)-\d+', url)
+            if sku_match:
+                sku = sku_match.group(0).lstrip('/')
+            
+            # Try from structured data
+            if not sku and json_ld:
+                if isinstance(json_ld, dict):
+                    # Try standard schema.org properties
+                    sku = (json_ld.get('sku') or 
+                          json_ld.get('productID') or 
+                          json_ld.get('mpn') or  # Manufacturer Part Number
+                          json_ld.get('identifier'))
+                    
+                    # Check offers array for SKUs
+                    if not sku and 'offers' in json_ld:
+                        offers = json_ld['offers']
+                        if isinstance(offers, list):
+                            for offer in offers:
+                                if isinstance(offer, dict):
+                                    sku = (offer.get('sku') or 
+                                          offer.get('productID') or 
+                                          offer.get('mpn'))
+                                    if sku:
+                                        break
+                        elif isinstance(offers, dict):
+                            sku = (offers.get('sku') or 
+                                  offers.get('productID') or 
+                                  offers.get('mpn'))
+            
+            # Try HTML elements
+            if not sku:
+                # Method 1: Data attributes
+                product_div = soup.find(['div', 'form'], {'data-product-id': True})
+                if product_div:
+                    sku = product_div.get('data-product-id')
+                
+                # Method 2: SKU/Product code element
+                if not sku:
+                    sku_patterns = [
+                        r'(?:CM|MS|KIT)-\d+',
+                        r'Product\s+(?:Code|ID):\s*([A-Z0-9-]+)',
+                        r'SKU:\s*([A-Z0-9-]+)',
+                        r'Item\s+#:\s*([A-Z0-9-]+)'
+                    ]
+                    
+                    # Look in text content
+                    for pattern in sku_patterns:
+                        for elem in soup.find_all(['span', 'div', 'p']):
+                            if elem.text:
+                                match = re.search(pattern, elem.text, re.I)
+                                if match:
+                                    sku = match.group(1) if len(match.groups()) > 0 else match.group(0)
+                                    break
+                        if sku:
+                            break
+            
+            # Clean up SKU if found
+            if sku:
+                # Remove any surrounding whitespace or special characters
+                sku = re.sub(r'^[^A-Z0-9]+|[^A-Z0-9-]+$', '', sku.upper())
+                # Validate format
+                if not re.match(r'^(?:CM|MS|KIT)-\d+$', sku):
+                    sku = None
+            
+            # Determine material
+            material_map = {
+                'sterling silver': 'Silver',
+                '14k gold': 'Gold',
+                'white gold': 'White Gold',
+                'rose gold': 'Rose Gold'
+            }
+            
+            # Try to get material from structured data
+            if json_ld:
+                material_prop = json_ld.get('material', '').lower()
+                for key, value in material_map.items():
+                    if key in material_prop:
+                        material = value
+                        break
+            
+            # Try to get from page content if not found
+            if not material:
+                material_elem = soup.find(['span', 'div'], class_=re.compile(r'material|metal', re.I))
+                if material_elem:
+                    material_text = material_elem.text.strip().lower()
+                    for key, value in material_map.items():
+                        if key in material_text:
+                            material = value
+                            break
+            
+            # Default to Silver if still not found
+            if not material:
+                material = 'Silver'  # Default
             
             # Check if retired
             is_retired = False
@@ -275,17 +694,39 @@ class JamesAveryScraper:
                 is_retired = True
                 status = 'Retired'
             
-            # Extract price
+            # Extract price - try multiple methods
             price = None
-            price_elem = soup.find('span', class_=re.compile(r'price-sales'))
-            if not price_elem:
-                price_elem = soup.find('span', {'itemprop': 'price'})
+            # Method 1: Structured data
+            if json_ld and 'offers' in json_ld:
+                try:
+                    price_str = json_ld['offers'].get('price')
+                    if price_str:
+                        price = float(str(price_str).replace(',', ''))
+                except (ValueError, TypeError):
+                    pass
             
-            if price_elem:
-                price_text = price_elem.text.strip()
-                price_match = re.search(r'\$([\d,]+\.?\d*)', price_text)
-                if price_match:
-                    price = float(price_match.group(1).replace(',', ''))
+            # Method 2: Price element
+            if not price:
+                for price_class in ['price-sales', 'product-price', 'price']:
+                    price_elem = soup.find(['span', 'div'], class_=re.compile(price_class, re.I))
+                    if price_elem:
+                        price_text = price_elem.text.strip()
+                        price_match = re.search(r'\$?([\d,]+\.?\d*)', price_text)
+                        if price_match:
+                            try:
+                                price = float(price_match.group(1).replace(',', ''))
+                                break
+                            except ValueError:
+                                continue
+            
+            # Method 3: Meta tags
+            if not price:
+                meta_price = soup.find('meta', {'property': 'product:price:amount'})
+                if meta_price:
+                    try:
+                        price = float(meta_price.get('content', '0').replace(',', ''))
+                    except ValueError:
+                        pass
             
             # Extract images
             images = []
@@ -376,22 +817,126 @@ class JamesAveryScraper:
                             if len(images) >= 3:
                                 break
             
+            # Extract additional metadata
+            sku = None
+            sku_elem = soup.find('span', class_=re.compile(r'product-sku|sku|product-number|item-number'))
+            if sku_elem:
+                sku = re.search(r'[A-Z0-9-]+', sku_elem.text.strip())
+                if sku:
+                    sku = sku.group(0)
+            
+            # Extract category breadcrumbs
+            breadcrumbs = []
+            breadcrumb_nav = soup.find('nav', {'aria-label': re.compile(r'.*breadcrumb.*', re.I)})
+            if breadcrumb_nav:
+                for crumb in breadcrumb_nav.find_all('a'):
+                    breadcrumbs.append(crumb.text.strip())
+            
+            # Extract metal options - try multiple methods
+            metal_options = []
+            
+            # Method 1: Variant selector
+            variant_script = soup.find('script', string=re.compile(r'var\s+variants\s*='))
+            if variant_script:
+                try:
+                    variants_match = re.search(r'var\s+variants\s*=\s*(\[.*?\]);', variant_script.string, re.DOTALL)
+                    if variants_match:
+                        import json
+                        variants = json.loads(variants_match.group(1))
+                        for variant in variants:
+                            if 'metal' in variant:
+                                metal_options.append({
+                                    'type': variant['metal'],
+                                    'value': variant.get('id', ''),
+                                    'available': variant.get('available', False),
+                                    'price': variant.get('price', None)
+                                })
+                except:
+                    pass
+            
+            # Method 2: Metal selector
+            if not metal_options:
+                metal_select = soup.find('select', {'name': re.compile(r'.*metal.*', re.I)})
+                if metal_select:
+                    for option in metal_select.find_all('option'):
+                        metal_text = option.text.strip()
+                        metal_value = option.get('value', '')
+                        if metal_text and metal_value and metal_text.lower() not in ['select', 'choose']:
+                            # Try to get price from data attribute or text
+                            price_match = re.search(r'\(([\d,.]+)\)', metal_text)
+                            try:
+                                price = float(price_match.group(1).replace(',', '')) if price_match else None
+                            except ValueError:
+                                price = None
+                            
+                            metal_options.append({
+                                'type': re.sub(r'\s*\(.*?\)', '', metal_text),
+                                'value': metal_value,
+                                'available': not bool(option.get('disabled')),
+                                'price': price
+                            })
+            
+            # Method 3: Material tags or text
+            if not metal_options:
+                metal_texts = []
+                for elem in soup.find_all(['span', 'div', 'p'], string=re.compile(r'(?:sterling|silver|gold|metal)', re.I)):
+                    text = elem.text.strip().lower()
+                    if 'sterling silver' in text:
+                        metal_texts.append('Sterling Silver')
+                    elif '14k gold' in text:
+                        metal_texts.append('14K Gold')
+                    elif 'white gold' in text:
+                        metal_texts.append('White Gold')
+                    elif 'rose gold' in text:
+                        metal_texts.append('Rose Gold')
+                
+                for metal in set(metal_texts):
+                    metal_options.append({
+                        'type': metal,
+                        'value': metal.lower().replace(' ', '-'),
+                        'available': True,
+                        'price': None
+                    })
+            
+            # Extract any size options
+            sizes = []
+            size_select = soup.find('select', {'name': re.compile(r'.*size.*', re.I)})
+            if size_select:
+                for option in size_select.find_all('option'):
+                    size_text = option.text.strip()
+                    if size_text and size_text.lower() not in ['select size', 'choose size']:
+                        sizes.append(size_text)
+
+            # Detect if the item is exclusive or part of a collection
+            is_exclusive = 'exclusive' in html.lower()
+            collection = None
+            collection_links = soup.find_all('a', href=re.compile(r'/collections/[^/]+/?$'))
+            if collection_links:
+                collection = collection_links[0].text.strip()
+            
             # Return structured data
             product_data = {
                 'name': name,
                 'description': description or f"Individual {name} charm from James Avery.",
+                'sku': sku,
                 'material': material,
+                'metal_options': metal_options,
+                'sizes': sizes if sizes else None,
                 'status': status,
                 'is_retired': is_retired,
                 'official_price': price,
                 'images': images,
                 'official_url': url,
-                'scraped_at': datetime.utcnow()
+                'category_path': breadcrumbs,
+                'is_exclusive': is_exclusive,
+                'collection': collection,
+                'scraped_at': datetime.utcnow().isoformat(),
+                'in_stock': not is_retired and bool(price)
             }
             
             logger.info(f"Parsed product: {name} - Found {len(images)} images")
-            if images:
-                logger.debug(f"Image URLs: {images}")
+            if metal_options:
+                logger.debug(f"Metal options: {metal_options}")
             
             return product_data if name else None
             
@@ -411,5 +956,54 @@ class JamesAveryScraper:
             return False
 
 
+async def test_scraper():
+    """Test function to validate scraper functionality"""
+    async with JamesAveryScraper() as scraper:
+        # Test specific charm URLs
+        test_urls = [
+            "https://www.jamesavery.com/charms/heart-to-heart-charm/CM-1979.html",
+            "https://www.jamesavery.com/charms/flared-cross-charm/CM-2230.html",
+            "https://www.jamesavery.com/charms/enamel-halloween-dinosaur-costume-charm/CM-6139.html"
+        ]
+        
+        logger.info("Starting scraper test...")
+        for url in test_urls:
+            try:
+                details = await scraper._get_product_page(url)
+                if details:
+                    logger.info(f"\nTested URL: {url}")
+                    logger.info(f"Name: {details.get('name', 'N/A')}")
+                    logger.info(f"Price: ${details.get('official_price', 'N/A')}")
+                    logger.info(f"Status: {details.get('status', 'N/A')}")
+                    logger.info(f"Metal Options: {', '.join(m.get('type', '') for m in details.get('metal_options', []))}")
+                    logger.info(f"Images Found: {len(details.get('images', []))}")
+                    logger.info(f"SKU: {details.get('sku', 'N/A')}")
+                    logger.info("-" * 50)
+                else:
+                    logger.error(f"Failed to get details for {url}")
+            except Exception as e:
+                logger.error(f"Error testing {url}: {str(e)}")
+        
+        # Test search functionality
+        test_searches = ["heart charm", "cross charm", "baby feet"]
+        for search_term in test_searches:
+            try:
+                results = await scraper._search_charm(search_term)
+                logger.info(f"\nSearch results for '{search_term}':")
+                logger.info(f"Found {len(results)} results")
+                if results:
+                    sample = results[0]
+                    logger.info(f"First result: {sample.get('title', 'N/A')}")
+                    logger.info(f"URL: {sample.get('url', 'N/A')}")
+                logger.info("-" * 50)
+            except Exception as e:
+                logger.error(f"Error testing search for {search_term}: {str(e)}")
+
+
 # Initialize scraper instance
 james_avery_scraper = JamesAveryScraper()
+
+# Run test if executed directly
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(test_scraper())

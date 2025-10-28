@@ -7,20 +7,23 @@ export const MarketDataTable = () => {
   const navigate = useNavigate();
   const [charms, setCharms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    fetchMarketData();
-  }, []);
+    fetchMarketData(currentPage);
+  }, [currentPage]);
 
-  const fetchMarketData = async () => {
+  const fetchMarketData = async (page) => {
     try {
       setLoading(true);
       const data = await charmAPI.getAllCharms({
-        page: 1,
-        limit: 20,
+        page: page,
+        limit: 10,
         sort: 'popularity'
       });
       setCharms(data.charms || []);
+      setTotalPages(data.total_pages || 1);
     } catch (error) {
       console.error('Error fetching market data:', error);
     } finally {

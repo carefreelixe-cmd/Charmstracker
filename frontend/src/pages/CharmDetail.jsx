@@ -5,7 +5,8 @@ import {
   RefreshCw, Clock, CheckCircle, AlertCircle 
 } from 'lucide-react';
 import { charmAPI, watchlistUtils, realtimeUtils } from '../services/api';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import PriceHistoryChart from '../components/PriceHistoryChart';
+import { MarketDataTable } from '../components/MarketDataTable';
 import {
   Carousel,
   CarouselContent,
@@ -108,30 +109,36 @@ export const CharmDetail = () => {
     }
   };
 
+  // Auto-refresh data every 5 minutes
+  useEffect(() => {
+    const fetchData = async () => {
+      if (id) {
+        const data = await charmAPI.getCharmById(id);
+        setCharm(data);
+      }
+    };
+
+    // Initial fetch
+    fetchData();
+
+    // Set up auto-refresh
+    const refreshInterval = setInterval(fetchData, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(refreshInterval);
+  }, [id]);
+
   const chartData = useMemo(() => {
     if (!charm || !charm.price_history || charm.price_history.length === 0) return [];
     
-    const last30Days = charm.price_history.slice(-30);
-    
-    return last30Days.map((entry, index) => {
-      let dateStr = `Day ${index + 1}`;
-      
-      try {
-        if (entry.date) {
-          const date = new Date(entry.date);
-          if (!isNaN(date.getTime())) {
-            dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-          }
-        }
-      } catch (e) {
-        // Use fallback
-      }
-      
-      return {
-        date: dateStr,
-        price: Number(entry.price) || 0
-      };
-    });
+    // Get last 90 days of price history
+    return charm.price_history
+      .slice(-90)
+      .map(entry => ({
+        date: new Date(entry.date),
+        price: entry.price
+      }))
+      .filter(entry => !isNaN(entry.date.getTime()))
+      .sort((a, b) => a.date - b.date);
   }, [charm]);
 
   const needsUpdate = charm ? realtimeUtils.needsRefresh(charm.last_updated, 30) : false;
@@ -447,24 +454,8 @@ export const CharmDetail = () => {
         {charm && charm.price_history && charm.price_history.length > 0 && (
           <div className="mb-16 bg-white p-8" style={{ border: '2px solid #c9a94d', borderRadius: '0px' }}>
             <h2 className="heading-2 mb-6">Price History (Last 30 Days)</h2>
-            <div style={{ width: '100%', height: '400px' }}>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart 
-                  data={chartData}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line 
-                    type="monotone" 
-                    dataKey="price" 
-                    stroke="#c9a94d" 
-                    strokeWidth={2}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="w-full h-[400px] bg-white rounded-lg shadow-sm p-4">
+              <PriceHistoryChart priceHistory={chartData} />
             </div>
             <p className="text-center mt-4 body-small" style={{ color: '#999999' }}>
               Real-time aggregated pricing from eBay, Etsy, Poshmark and more

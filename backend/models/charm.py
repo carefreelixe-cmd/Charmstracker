@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
-import uuid
+from bson import ObjectId
 
 
 class PriceHistoryEntry(BaseModel):
@@ -20,7 +20,7 @@ class Listing(BaseModel):
 
 
 class Charm(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str = Field(default_factory=lambda: str(ObjectId()))
     name: str
     description: str
     material: str  # "Silver" or "Gold" - Individual charms only

@@ -28,7 +28,7 @@ async def get_all_charms(
     min_price: Optional[float] = Query(None, ge=0),
     max_price: Optional[float] = Query(None, ge=0),
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(10, ge=1, le=100),
 ):
     """Get all charms with filtering and sorting"""
     try:

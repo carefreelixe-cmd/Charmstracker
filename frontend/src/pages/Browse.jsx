@@ -16,7 +16,7 @@ export const Browse = () => {
   });
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 12,
+    limit: 10,  // Show 10 charms per page
     total: 0,
     totalPages: 0
   });
@@ -297,12 +297,22 @@ export const Browse = () => {
                 className="bg-white overflow-hidden transition-smooth hover:shadow-lg text-left"
                 style={{ border: 'none', borderRadius: '0px' }}
               >
-                <div className="w-full h-64 overflow-hidden">
-                  <img
-                    src={charm.images[0]}
-                    alt={charm.name}
-                    className="w-full h-full object-cover transition-smooth hover:scale-105"
-                  />
+                <div className="w-full h-64 overflow-hidden bg-gray-100">
+                  {charm.images && charm.images.length > 0 ? (
+                    <img
+                      src={charm.images[0]}
+                      alt={charm.name}
+                      className="w-full h-full object-cover transition-smooth hover:scale-105"
+                      onError={(e) => {
+                        e.target.onerror = null; // Prevent infinite loop
+                        e.target.src = '/placeholder-charm.png'; // Add a placeholder image to your public folder
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-gray-400">No image available</span>
+                    </div>
+                  )}
                 </div>
                 <div className="p-4">
                   <h3 className="heading-3 mb-2 line-clamp-1">{charm.name}</h3>

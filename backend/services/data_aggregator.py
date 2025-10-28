@@ -1,15 +1,17 @@
 """
-Data Aggregator Service for CharmTracker
-Combines data from all scrapers and updates database
+Enhanced Data Aggregator Service for CharmTracker
+Combines data from all sources and tracks historical pricing
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import asyncio
 from statistics import mean, median
+import pandas as pd
+import numpy as np
 
-from scrapers.ebay_scraper import ebay_scraper
+from scrapers.ebay_api_client import EbayAPIClient
 from scrapers.etsy_scraper import etsy_scraper
 from scrapers.poshmark_scraper import poshmark_scraper
 from scrapers.james_avery_scraper import james_avery_scraper
@@ -18,22 +20,19 @@ logger = logging.getLogger(__name__)
 
 
 class DataAggregator:
-    """Aggregates data from all sources"""
+    """Aggregates and analyzes data from all sources"""
     
     def __init__(self, db):
         self.db = db
+        self.ebay_client = EbayAPIClient()
         self.scrapers = {
-            'ebay': ebay_scraper,
             'etsy': etsy_scraper,
             'poshmark': poshmark_scraper,
             'james_avery': james_avery_scraper
         }
     
     async def update_charm_data(self, charm_id: str) -> bool:
-        """
-        Update all data for a specific charm
-        Fetches from all marketplaces and James Avery
-        """
+        """Update all data for a specific charm"""
         try:
             # Get existing charm data
             charm = await self.db.charms.find_one({"id": charm_id})
@@ -44,9 +43,9 @@ class DataAggregator:
             charm_name = charm['name']
             logger.info(f"Updating data for: {charm_name}")
             
-            # Fetch data from all marketplaces and James Avery
+            # Fetch current marketplace data
             tasks = [
-                self._fetch_marketplace_data(charm_name, 'ebay'),
+                self._fetch_ebay_data(charm_name),
                 self._fetch_marketplace_data(charm_name, 'etsy'),
                 self._fetch_marketplace_data(charm_name, 'poshmark'),
                 self._fetch_james_avery_data(charm_name)
@@ -54,29 +53,26 @@ class DataAggregator:
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            ebay_data = results[0] if not isinstance(results[0], Exception) else []
+            ebay_data = results[0] if not isinstance(results[0], Exception) else {'current': [], 'completed': []}
             etsy_data = results[1] if not isinstance(results[1], Exception) else []
             poshmark_data = results[2] if not isinstance(results[2], Exception) else []
             ja_data = results[3] if not isinstance(results[3], Exception) else None
             
-            # Combine all marketplace listings
-            all_listings = ebay_data + etsy_data + poshmark_data
+            # Current active listings from all platforms
+            all_listings = ebay_data['current'] + etsy_data + poshmark_data
             
-            logger.info(f"Fetched {len(ebay_data)} eBay, {len(etsy_data)} Etsy, {len(poshmark_data)} Poshmark listings for {charm_name}")
+            logger.info(f"Fetched {len(ebay_data['current'])} eBay, {len(etsy_data)} Etsy, {len(poshmark_data)} Poshmark listings for {charm_name}")
             
-            # Calculate aggregated data (even if no listings - we can use fallback)
+            # Historical data for trends
+            historical_data = await self._get_historical_data(charm_id, ebay_data['completed'])
+            
+            # Calculate aggregated metrics
             update_data = await self._calculate_aggregated_data(
-                charm, 
-                all_listings, 
+                charm,
+                all_listings,
+                historical_data,
                 ja_data
             )
-            
-            # If no data at all, just update timestamp
-            if not all_listings and not ja_data:
-                logger.warning(f"No new data found for {charm_name}, keeping existing data")
-                update_data = {
-                    "last_updated": datetime.utcnow()
-                }
             
             # Update database
             result = await self.db.charms.update_one(
@@ -91,12 +87,21 @@ class DataAggregator:
             logger.error(f"Error updating charm {charm_id}: {str(e)}")
             return False
     
+    async def _fetch_ebay_data(self, charm_name: str) -> Dict:
+        """Fetch both current and completed eBay listings"""
+        current = await self.ebay_client.search_listings(charm_name)
+        completed = await self.ebay_client.get_completed_listings(charm_name)
+        return {
+            'current': current,
+            'completed': completed
+        }
+    
     async def _fetch_marketplace_data(
         self, 
         charm_name: str, 
         platform: str
     ) -> List[Dict]:
-        """Fetch data from a specific marketplace"""
+        """Fetch data from other marketplaces"""
         try:
             scraper = self.scrapers.get(platform)
             if not scraper:
