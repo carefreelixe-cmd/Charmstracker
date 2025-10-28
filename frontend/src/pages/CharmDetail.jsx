@@ -231,7 +231,7 @@ export const CharmDetail = () => {
         {marketplaceStatus && (
           <div className="mb-6 p-4 bg-white" style={{ border: '1px solid #bcbcbc' }}>
             <h3 className="heading-3 mb-3">Marketplace Availability</h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {Object.entries(marketplaceStatus.availability).map(([platform, status]) => (
                 <div key={platform} className="flex items-center gap-2">
                   {status.available ? (
@@ -296,7 +296,7 @@ export const CharmDetail = () => {
                   />
                 </Carousel>
                 {/* Thumbnail Navigation */}
-                <div className="grid grid-cols-4 gap-4 mt-4">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mt-4">
                   {charm.images.map((img, index) => (
                     <button
                       key={index}
@@ -311,7 +311,7 @@ export const CharmDetail = () => {
                       <img
                         src={img}
                         alt={`${charm.name} thumbnail ${index + 1}`}
-                        className="w-full h-20 object-cover"
+                        className="w-full h-16 sm:h-20 object-contain md:object-cover"
                       />
                     </button>
                   ))}
@@ -323,7 +323,7 @@ export const CharmDetail = () => {
                 <img
                   src={charm.images[0]}
                   alt={charm.name}
-                  className="w-full h-96 object-cover"
+                  className="w-full h-[250px] sm:h-[300px] md:h-[400px] lg:h-96 object-contain md:object-cover"
                 />
               </div>
             )}
