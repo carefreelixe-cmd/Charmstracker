@@ -44,21 +44,25 @@ class DataAggregator:
             charm_name = charm['name']
             logger.info(f"Updating data for: {charm_name}")
             
-            # Fetch data from James Avery and eBay only
+            # Fetch data from all marketplaces and James Avery
             tasks = [
                 self._fetch_marketplace_data(charm_name, 'ebay'),
+                self._fetch_marketplace_data(charm_name, 'etsy'),
+                self._fetch_marketplace_data(charm_name, 'poshmark'),
                 self._fetch_james_avery_data(charm_name)
             ]
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
             ebay_data = results[0] if not isinstance(results[0], Exception) else []
-            ja_data = results[1] if not isinstance(results[1], Exception) else None
+            etsy_data = results[1] if not isinstance(results[1], Exception) else []
+            poshmark_data = results[2] if not isinstance(results[2], Exception) else []
+            ja_data = results[3] if not isinstance(results[3], Exception) else None
             
-            # Only use eBay listings
-            all_listings = ebay_data
+            # Combine all marketplace listings
+            all_listings = ebay_data + etsy_data + poshmark_data
             
-            logger.info(f"Fetched {len(ebay_data)} eBay listings for {charm_name}")
+            logger.info(f"Fetched {len(ebay_data)} eBay, {len(etsy_data)} Etsy, {len(poshmark_data)} Poshmark listings for {charm_name}")
             
             # Calculate aggregated data (even if no listings - we can use fallback)
             update_data = await self._calculate_aggregated_data(
