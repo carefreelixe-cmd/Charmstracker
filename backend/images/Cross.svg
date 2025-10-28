@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20.931" height="20.931" viewBox="0 0 20.931 20.931">
+  <g id="Cross" transform="translate(10.465 10.465) rotate(45)">
+    <g id="Group_302" data-name="Group 302" transform="translate(-8 -7.959)">
+      <path id="Path_1071" data-name="Path 1071" d="M3.622,11H18.463m-7.42,7.38V3.622" transform="translate(-3.043 -3.043)"/>
+      <g id="Group_301" data-name="Group 301">
+        <path id="Path_1072" data-name="Path 1072" d="M.58,47.2H15.421a.6.6,0,0,0,0-1.2H.58a.6.6,0,0,0,0,1.2Z" transform="translate(0 -38.636)"/>
+        <path id="Path_1073" data-name="Path 1073" d="M47.45,15.339V.58a.6.6,0,0,0-1.2,0V15.339a.6.6,0,0,0,1.2,0Z" transform="translate(-38.85 0)"/>
+      </g>
+    </g>
+  </g>
+</svg>

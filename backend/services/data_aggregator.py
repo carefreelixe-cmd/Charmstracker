@@ -155,6 +155,8 @@ class DataAggregator:
             "last_updated": datetime.utcnow()
         }
         
+        charm_name = existing_charm.get('name', 'Unknown')
+        
         # Update from James Avery official data if available
         if ja_data:
             logger.info(f"🏪 [JAMES AVERY] Processing official data for: {charm_name}")

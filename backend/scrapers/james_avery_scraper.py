@@ -137,7 +137,67 @@ class JamesAveryScraper:
                 await asyncio.sleep(delay)
                 
         return None
+            
+    async def _get_all_product_urls(self) -> Set[str]:
+        """Get all product URLs from main James Avery charms page"""
+        all_product_urls = set()
         
+        # Use main charms page with pagination - NO CATEGORIES
+        base_url = f"{self.base_url}/charms"
+        page = 0
+        consecutive_empty_pages = 0
+        MAX_PAGES = 100  # Adjust if needed
+        
+        logger.info("Scraping ALL charms from main page (no categories)")
+        
+        while page < MAX_PAGES:
+            # James Avery uses start parameter for pagination
+            url = f"{base_url}?start={page * 30}&sz=30"
+            logger.info(f"Fetching page {page + 1}: {url}")
+            
+            html = await self._make_request(url)
+            
+            if not html:
+                consecutive_empty_pages += 1
+                if consecutive_empty_pages >= 2:
+                    break
+                page += 1
+                continue
+            
+            soup = BeautifulSoup(html, 'html.parser')
+            product_links = set()
+            
+            # Find all product links on this page
+            # Try multiple selectors
+            for link in soup.find_all('a', href=re.compile(r'/charms/[^/]+/[A-Z]+-\d+\.html')):
+                product_url = urljoin(self.base_url, link['href'])
+                product_links.add(product_url)
+            
+            # Also try product tiles/cards
+            for tile in soup.find_all(['div', 'article'], class_=re.compile(r'product|tile|card', re.I)):
+                link = tile.find('a', href=re.compile(r'/charms/'))
+                if link and link.get('href'):
+                    product_url = urljoin(self.base_url, link['href'])
+                    if '/charms/' in product_url and '.html' in product_url:
+                        product_links.add(product_url)
+            
+            if not product_links:
+                consecutive_empty_pages += 1
+                logger.info(f"No products found on page {page + 1}")
+                if consecutive_empty_pages >= 3:
+                    logger.info("No more products found, stopping")
+                    break
+            else:
+                consecutive_empty_pages = 0
+                all_product_urls.update(product_links)
+                logger.info(f"Found {len(product_links)} products on page {page + 1} (Total: {len(all_product_urls)})")
+            
+            page += 1
+            await asyncio.sleep(DELAY)
+        
+        logger.info(f"Total products discovered: {len(all_product_urls)}")
+        return all_product_urls
+    
     async def get_all_charms(self) -> List[Dict]:
         """
         Fetch all charms from James Avery website
