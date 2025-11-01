@@ -40,7 +40,7 @@ export const Navbar = () => {
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
           <button
-            onClick={() => scrollToSection('hero')}
+            onClick={() => window.location.href = '/'}
             className="flex items-center transition-smooth hover:opacity-75"
           >
             <img

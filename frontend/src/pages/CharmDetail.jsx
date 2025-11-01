@@ -196,12 +196,14 @@ export const CharmDetail = () => {
         </button>
 
         {/* Update Status Bar */}
-        <div className="mb-6 p-4 bg-white flex items-center justify-between" style={{ border: '1px solid #bcbcbc' }}>
-          <div className="flex items-center gap-3">
-            <Clock className="w-5 h-5" style={{ color: '#666666' }} />
-            <span className="body-small" style={{ color: '#666666' }}>
-              Last updated: {realtimeUtils.timeSinceUpdate(lastUpdateTime)}
-            </span>
+        <div className="mb-6 p-4 bg-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0" style={{ border: '1px solid #bcbcbc' }}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5" style={{ color: '#666666' }} />
+              <span className="body-small" style={{ color: '#666666' }}>
+                Last updated: {realtimeUtils.timeSinceUpdate(lastUpdateTime)}
+              </span>
+            </div>
             {needsUpdate && (
               <span className="flex items-center gap-1 body-small" style={{ color: '#c9a94d' }}>
                 <AlertCircle className="w-4 h-4" />
@@ -212,7 +214,7 @@ export const CharmDetail = () => {
           <button
             onClick={handleForceUpdate}
             disabled={updating}
-            className="flex items-center gap-2 px-4 py-2 transition-smooth"
+            className="flex items-center gap-2 px-4 py-2 transition-smooth w-full sm:w-auto"
             style={{
               background: updating ? '#f3f3f3' : '#c9a94d',
               color: '#ffffff',
@@ -231,7 +233,7 @@ export const CharmDetail = () => {
         {marketplaceStatus && (
           <div className="mb-6 p-4 bg-white" style={{ border: '1px solid #bcbcbc' }}>
             <h3 className="heading-3 mb-3">Marketplace Availability</h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {Object.entries(marketplaceStatus.availability).map(([platform, status]) => (
                 <div key={platform} className="flex items-center gap-2">
                   {status.available ? (
@@ -296,7 +298,7 @@ export const CharmDetail = () => {
                   />
                 </Carousel>
                 {/* Thumbnail Navigation */}
-                <div className="grid grid-cols-4 gap-4 mt-4">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mt-4">
                   {charm.images.map((img, index) => (
                     <button
                       key={index}
@@ -311,7 +313,7 @@ export const CharmDetail = () => {
                       <img
                         src={img}
                         alt={`${charm.name} thumbnail ${index + 1}`}
-                        className="w-full h-20 object-cover"
+                        className="w-full h-16 sm:h-20 object-contain md:object-cover"
                       />
                     </button>
                   ))}
@@ -323,7 +325,7 @@ export const CharmDetail = () => {
                 <img
                   src={charm.images[0]}
                   alt={charm.name}
-                  className="w-full h-96 object-cover"
+                  className="w-full h-[250px] sm:h-[300px] md:h-[400px] lg:h-96 object-contain md:object-cover"
                 />
               </div>
             )}
@@ -331,15 +333,15 @@ export const CharmDetail = () => {
 
           {/* Charm Details */}
           <div>
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h1 className="heading-1 mb-2">{charm.name}</h1>
-                <div className="flex items-center gap-4 mb-4">
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-4 sm:gap-0 mb-4">
+              <div className="w-full sm:w-auto">
+                <h1 className="heading-1 mb-2 text-2xl sm:text-3xl md:text-4xl">{charm.name}</h1>
+                <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-4">
                   <span className="body-regular" style={{ color: '#666666' }}>
                     Material: {charm.material}
                   </span>
                   <span
-                    className="px-3 py-1 text-sm"
+                    className="px-2 sm:px-3 py-1 text-xs sm:text-sm"
                     style={{
                       background: charm.status === 'Retired' ? '#f6f5e8' : 'transparent',
                       border: `1px solid ${charm.status === 'Retired' ? '#bcbcbc' : '#c9a94d'}`,
@@ -353,7 +355,7 @@ export const CharmDetail = () => {
               </div>
               <button
                 onClick={toggleWatchlist}
-                className="p-3 transition-smooth"
+                className="p-2 sm:p-3 transition-smooth"
                 style={{
                   background: isInWatchlist ? '#c9a94d' : 'transparent',
                   border: '1px solid #c9a94d',
@@ -369,13 +371,13 @@ export const CharmDetail = () => {
             </div>
 
             <div className="mb-6">
-              <div className="flex items-baseline gap-4 mb-2">
-                <span className="text-4xl font-semibold" style={{ color: '#333333' }}>
+              <div className="flex flex-wrap items-baseline gap-2 sm:gap-4 mb-2">
+                <span className="text-3xl sm:text-4xl font-semibold" style={{ color: '#333333' }}>
                   ${charm.avg_price.toFixed(2)}
                 </span>
                 {(!charm.listings || charm.listings.length === 0) && (
                   <span 
-                    className="text-sm px-3 py-1" 
+                    className="text-xs sm:text-sm px-2 sm:px-3 py-1" 
                     style={{ 
                       background: '#f6f5e8', 
                       color: '#666666',
