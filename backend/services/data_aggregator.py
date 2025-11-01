@@ -11,10 +11,10 @@ from statistics import mean, median
 import pandas as pd
 import numpy as np
 
-from scrapers.ebay_api_client import EbayAPIClient
-from scrapers.etsy_scraper import etsy_scraper
-from scrapers.poshmark_scraper import poshmark_scraper
-from scrapers.james_avery_scraper import james_avery_scraper
+from ..scrapers.ebay_api_client import EbayAPIClient
+from ..scrapers.etsy_scraper import etsy_scraper
+from ..scrapers.poshmark_scraper import poshmark_scraper
+from ..scrapers.james_avery_scraper import james_avery_scraper
 
 logger = logging.getLogger(__name__)
 

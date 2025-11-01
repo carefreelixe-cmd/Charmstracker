@@ -9,7 +9,7 @@ from datetime import datetime, time
 from typing import Optional
 import os
 
-from services.data_aggregator import DataAggregator
+from .data_aggregator import DataAggregator
 
 logger = logging.getLogger(__name__)
 

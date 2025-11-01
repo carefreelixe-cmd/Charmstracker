@@ -11,12 +11,12 @@ import uuid
 from datetime import datetime, timezone
 
 # Import routes
-from routes.charms import router as charms_router
-from routes.market import router as market_router
-from routes.scraper import router as scraper_router
+from .routes.charms import router as charms_router
+from .routes.market import router as market_router
+from .routes.scraper import router as scraper_router
 
 # Import scheduler
-from services.scheduler import start_scheduler, stop_scheduler
+from .services.scheduler import start_scheduler, stop_scheduler
 
 
 ROOT_DIR = Path(__file__).parent

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, TrendingUp, TrendingDown, Filter, X } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Filter, X, Grid, List } from 'lucide-react';
 import { charmAPI } from '../services/api';
 
 export const Browse = () => {
@@ -22,6 +22,7 @@ export const Browse = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 
   useEffect(() => {
     fetchCharms();
@@ -262,18 +263,51 @@ export const Browse = () => {
         </div>
 
         {/* Results Count */}
-        <div className="mb-6">
+        <div className="mb-6 flex items-center justify-between">
           <p className="body-regular" style={{ color: '#666666' }}>
             Showing {filteredCharms.length} of {pagination.total} charms
           </p>
+          
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setViewMode('grid')}
+              className="p-2 transition-smooth"
+              style={{
+                background: viewMode === 'grid' ? '#c9a94d' : 'transparent',
+                border: '1px solid #c9a94d',
+                borderRadius: '0px',
+                color: viewMode === 'grid' ? '#ffffff' : '#333333'
+              }}
+              title="Grid View"
+            >
+              <Grid className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className="p-2 transition-smooth"
+              style={{
+                background: viewMode === 'list' ? '#c9a94d' : 'transparent',
+                border: '1px solid #c9a94d',
+                borderRadius: '0px',
+                color: viewMode === 'list' ? '#ffffff' : '#333333'
+              }}
+              title="List View"
+            >
+              <List className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Charms Grid */}
+        {/* Charms Grid/List */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className={viewMode === 'grid' 
+            ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+            : "flex flex-col gap-4"
+          }>
             {[...Array(8)].map((_, i) => (
               <div key={i} className="animate-pulse bg-white" style={{ borderRadius: '0px' }}>
-                <div className="h-64 bg-gray-200" />
+                <div className={viewMode === 'grid' ? "h-64 bg-gray-200" : "h-32 bg-gray-200"} />
                 <div className="p-4">
                   <div className="h-4 bg-gray-200 mb-2" />
                   <div className="h-6 bg-gray-200" />
@@ -288,7 +322,7 @@ export const Browse = () => {
               Try adjusting your filters or search term
             </p>
           </div>
-        ) : (
+        ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
             {filteredCharms.map((charm) => (
               <button
@@ -345,6 +379,90 @@ export const Browse = () => {
                     >
                       {charm.status}
                     </span>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 mb-12">
+            {filteredCharms.map((charm) => (
+              <button
+                key={charm.id}
+                onClick={() => navigate(`/charm/${charm.id}`)}
+                className="bg-white overflow-hidden transition-smooth hover:shadow-lg text-left flex"
+                style={{ 
+                  border: '1px solid #e5e5e5', 
+                  borderRadius: '0px',
+                  height: '140px'
+                }}
+              >
+                {/* Image */}
+                <div className="w-40 h-full flex-shrink-0 overflow-hidden bg-gray-100">
+                  {charm.images && charm.images.length > 0 ? (
+                    <img
+                      src={charm.images[0]}
+                      alt={charm.name}
+                      className="w-full h-full object-cover transition-smooth hover:scale-105"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = '/placeholder-charm.png';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-gray-400 text-xs">No image</span>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Content */}
+                <div className="flex-1 p-4 flex items-center justify-between min-w-0">
+                  {/* Left side: Name and Material */}
+                  <div className="flex-1 min-w-0 pr-4">
+                    <h3 className="heading-3 mb-2 line-clamp-1">{charm.name}</h3>
+                    <div className="flex items-center gap-3">
+                      <span className="body-small" style={{ color: '#666666' }}>{charm.material}</span>
+                      <span
+                        className="px-2 py-1 text-xs"
+                        style={{
+                          background: charm.status === 'Retired' ? '#f6f5e8' : 'transparent',
+                          border: `1px solid ${charm.status === 'Retired' ? '#bcbcbc' : '#c9a94d'}`,
+                          borderRadius: '0px',
+                          color: '#333333'
+                        }}
+                      >
+                        {charm.status}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Right side: Price and Change */}
+                  <div className="flex items-center gap-8 flex-shrink-0">
+                    <div className="text-right">
+                      <div className="text-sm" style={{ color: '#666666', marginBottom: '4px' }}>
+                        Avg Price
+                      </div>
+                      <div className="text-2xl font-semibold" style={{ color: '#333333' }}>
+                        ${charm.avg_price.toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm" style={{ color: '#666666', marginBottom: '4px' }}>
+                        7d Change
+                      </div>
+                      <div
+                        className="flex items-center gap-1 text-lg font-medium justify-end"
+                        style={{ color: charm.price_change_7d >= 0 ? '#2d8659' : '#ba3e2b' }}
+                      >
+                        {charm.price_change_7d >= 0 ? (
+                          <TrendingUp className="w-5 h-5" />
+                        ) : (
+                          <TrendingDown className="w-5 h-5" />
+                        )}
+                        {Math.abs(charm.price_change_7d)}%
+                      </div>
+                    </div>
                   </div>
                 </div>
               </button>
