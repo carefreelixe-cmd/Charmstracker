@@ -94,6 +94,15 @@ export const charmAPI = {
   getScraperStatus: async () => {
     return await apiFetch('/api/scraper/status');
   },
+
+  /**
+   * Trigger James Avery scraper to refresh all data
+   */
+  triggerJamesAveryScrape: async () => {
+    return await apiFetch('/api/scraper/james-avery/scrape', {
+      method: 'POST',
+    });
+  },
 };
 
 /**

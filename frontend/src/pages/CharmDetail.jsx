@@ -26,6 +26,7 @@ export const CharmDetail = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [marketplaceStatus, setMarketplaceStatus] = useState(null);
   const [lastUpdateTime, setLastUpdateTime] = useState(null);
+  const [scraperRunning, setScraperRunning] = useState(false);
 
   useEffect(() => {
     fetchCharmDetail();
@@ -96,6 +97,22 @@ export const CharmDetail = () => {
     } catch (error) {
       console.error('Error updating charm:', error);
       setUpdating(false);
+    }
+  };
+
+  const handleRefreshAllData = async () => {
+    try {
+      setScraperRunning(true);
+      await charmAPI.triggerJamesAveryScrape();
+      
+      // Show notification
+      alert('🏪 James Avery scraper started! This will refresh all charm data. Check back in 30-45 minutes for updated data.');
+      
+      setScraperRunning(false);
+    } catch (error) {
+      console.error('Error triggering scraper:', error);
+      alert('❌ Error starting scraper. Please try again.');
+      setScraperRunning(false);
     }
   };
 
@@ -211,22 +228,50 @@ export const CharmDetail = () => {
               </span>
             )}
           </div>
-          <button
-            onClick={handleForceUpdate}
-            disabled={updating}
-            className="flex items-center gap-2 px-4 py-2 transition-smooth w-full sm:w-auto"
-            style={{
-              background: updating ? '#f3f3f3' : '#c9a94d',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '0px',
-              opacity: updating ? 0.6 : 1,
-              cursor: updating ? 'wait' : 'pointer'
-            }}
-          >
-            <RefreshCw className={`w-4 h-4 ${updating ? 'animate-spin' : ''}`} />
-            {updating ? 'Updating...' : 'Refresh Data'}
-          </button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button
+              onClick={handleForceUpdate}
+              disabled={updating}
+              className="flex items-center gap-2 px-4 py-2 transition-smooth flex-1 sm:flex-initial"
+              style={{
+                background: updating ? '#f3f3f3' : '#c9a94d',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '0px',
+                opacity: updating ? 0.6 : 1,
+                cursor: updating ? 'wait' : 'pointer'
+              }}
+              title="Refresh marketplace data for this charm"
+            >
+              <RefreshCw className={`w-4 h-4 ${updating ? 'animate-spin' : ''}`} />
+              {updating ? 'Updating...' : 'Refresh Charm'}
+            </button>
+            <button
+              onClick={handleRefreshAllData}
+              disabled={scraperRunning}
+              className="flex items-center gap-2 px-4 py-2 transition-smooth flex-1 sm:flex-initial"
+              style={{
+                background: scraperRunning ? '#f3f3f3' : 'transparent',
+                color: scraperRunning ? '#999999' : '#c9a94d',
+                border: '1px solid #c9a94d',
+                borderRadius: '0px',
+                opacity: scraperRunning ? 0.6 : 1,
+                cursor: scraperRunning ? 'wait' : 'pointer'
+              }}
+              title="Run full James Avery scraper (updates all charms)"
+            >
+              <RefreshCw className={`w-4 h-4 ${scraperRunning ? 'animate-spin' : ''}`} />
+              {scraperRunning ? 'Running...' : 'Refresh All Data'}
+            </button>
+          </div>
+        </div>
+
+        {/* Auto-Update Info */}
+        <div className="mb-6 p-3 flex items-center gap-2" style={{ background: '#f6f5e8', border: '1px solid #c9a94d' }}>
+          <CheckCircle className="w-5 h-5" style={{ color: '#c9a94d' }} />
+          <span className="body-small" style={{ color: '#666666' }}>
+            <strong>Auto-Update:</strong> Data automatically refreshes every 6 hours from James Avery and marketplace sources. No duplicates will be created.
+          </span>
         </div>
 
         {/* Marketplace Availability */}

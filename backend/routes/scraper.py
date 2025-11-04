@@ -16,11 +16,19 @@ router = APIRouter(prefix="/api/scraper", tags=["scraper"])
 
 
 def get_database():
+    """Get database instance from server"""
     from ..server import db
     return db
 
 
+def get_scheduler():
+    """Get scheduler instance"""
+    from ..services.scheduler import _scheduler_instance
+    return _scheduler_instance
+
+
 def get_aggregator():
+    """Get data aggregator instance"""
     db = get_database()
     return DataAggregator(db)
 
@@ -76,9 +84,10 @@ async def update_all_charms(
 
 @router.get("/status")
 async def get_scraper_status():
-    """Get status of scraper service"""
+    """Get status of scraper service and scheduler"""
     try:
         db = get_database()
+        scheduler = get_scheduler()
         
         # Get last update times for charms
         recent_updates = await db.charms.find(
@@ -96,10 +105,19 @@ async def get_scraper_status():
             "last_updated": {"$gte": cutoff}
         })
         
+        # Get scheduler status
+        scheduler_status = {
+            "running": scheduler.running if scheduler else False,
+            "update_interval_hours": scheduler.update_interval_hours if scheduler else None,
+            "scraper_interval_hours": 6 if scheduler else None,
+            "next_auto_scrape": "Every 6 hours" if (scheduler and scheduler.running) else "Not scheduled"
+        }
+        
         return {
             "status": "operational",
             "total_charms": total_charms,
             "updated_last_24h": recent_count,
+            "scheduler": scheduler_status,
             "recent_updates": [
                 {
                     "id": charm["id"],
@@ -112,6 +130,39 @@ async def get_scraper_status():
         
     except Exception as e:
         logger.error(f"Error getting scraper status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/james-avery/scrape")
+async def trigger_james_avery_scrape(background_tasks: BackgroundTasks):
+    """
+    Trigger immediate James Avery scraper
+    Scrapes all charms from James Avery website
+    No duplicates - updates existing or creates new
+    """
+    try:
+        scheduler = get_scheduler()
+        
+        if not scheduler:
+            raise HTTPException(
+                status_code=503, 
+                detail="Scheduler not initialized. Please restart the backend server."
+            )
+        
+        # Run scrape in background
+        background_tasks.add_task(scheduler.trigger_immediate_scrape)
+        
+        return {
+            "message": "James Avery scrape started",
+            "status": "processing",
+            "info": "This will scrape all charms from James Avery. Check logs for progress. Takes ~30-45 minutes.",
+            "expected_duration_minutes": "30-45"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error triggering James Avery scrape: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
