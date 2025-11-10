@@ -96,10 +96,10 @@ export const charmAPI = {
   },
 
   /**
-   * Trigger James Avery scraper to refresh all data
+   * Trigger scraper to refresh all data
    */
   triggerJamesAveryScrape: async () => {
-    return await apiFetch('/api/scraper/james-avery/scrape', {
+    return await apiFetch('/api/scraper/update-all', {
       method: 'POST',
     });
   },

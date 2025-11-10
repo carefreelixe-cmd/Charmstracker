@@ -106,12 +106,12 @@ export const CharmDetail = () => {
       await charmAPI.triggerJamesAveryScrape();
       
       // Show notification
-      alert('🏪 James Avery scraper started! This will refresh all charm data. Check back in 30-45 minutes for updated data.');
+      alert('🔄 Data refresh started! This will update all charm data from marketplace sources. Check back in a few minutes for updated data.');
       
       setScraperRunning(false);
     } catch (error) {
       console.error('Error triggering scraper:', error);
-      alert('❌ Error starting scraper. Please try again.');
+      alert('❌ Error starting data refresh. Please try again.');
       setScraperRunning(false);
     }
   };
@@ -258,10 +258,10 @@ export const CharmDetail = () => {
                 opacity: scraperRunning ? 0.6 : 1,
                 cursor: scraperRunning ? 'wait' : 'pointer'
               }}
-              title="Run full James Avery scraper (updates all charms)"
+              title="Update all charms from marketplace sources"
             >
               <RefreshCw className={`w-4 h-4 ${scraperRunning ? 'animate-spin' : ''}`} />
-              {scraperRunning ? 'Running...' : 'Refresh All Data'}
+              {scraperRunning ? 'Updating...' : 'Refresh All Data'}
             </button>
           </div>
         </div>
@@ -270,7 +270,7 @@ export const CharmDetail = () => {
         <div className="mb-6 p-3 flex items-center gap-2" style={{ background: '#f6f5e8', border: '1px solid #c9a94d' }}>
           <CheckCircle className="w-5 h-5" style={{ color: '#c9a94d' }} />
           <span className="body-small" style={{ color: '#666666' }}>
-            <strong>Auto-Update:</strong> Data automatically refreshes every 6 hours from James Avery and marketplace sources. No duplicates will be created.
+            <strong>Auto-Update:</strong> Data automatically refreshes from marketplace sources. Use the buttons above to manually trigger updates.
           </span>
         </div>
 
