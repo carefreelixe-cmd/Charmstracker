@@ -36,7 +36,7 @@ class EbayAPIClient:
                 'SERVICE-VERSION': '1.0.0',
                 'SECURITY-APPNAME': self.app_id,
                 'RESPONSE-DATA-FORMAT': 'JSON',
-                'REST-PAYLOAD': True,
+                'REST-PAYLOAD': 'true',
                 'keywords': f'James Avery {charm_name}',
                 'categoryId': '164333',  # Charms & Charm Bracelets
                 'itemFilter(0).name': 'Seller',
@@ -94,7 +94,7 @@ class EbayAPIClient:
                 'SERVICE-VERSION': '1.0.0',
                 'SECURITY-APPNAME': self.app_id,
                 'RESPONSE-DATA-FORMAT': 'JSON',
-                'REST-PAYLOAD': True,
+                'REST-PAYLOAD': 'true',
                 'keywords': f'James Avery {charm_name}',
                 'categoryId': '164333',
                 'itemFilter(0).name': 'SoldItemsOnly',

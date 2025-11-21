@@ -7,6 +7,7 @@ import {
 import { charmAPI, watchlistUtils, realtimeUtils } from '../services/api';
 import PriceHistoryChart from '../components/PriceHistoryChart';
 import { MarketDataTable } from '../components/MarketDataTable';
+import { PriceComparison } from '../components/PriceComparison';
 import {
   Carousel,
   CarouselContent,
@@ -495,6 +496,11 @@ export const CharmDetail = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Price Comparison Chart */}
+        <div className="mb-16">
+          <PriceComparison charm={charm} />
         </div>
 
         {/* Price History Chart */}
