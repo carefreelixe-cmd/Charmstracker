@@ -1,6 +1,7 @@
 """
 Etsy Scraper for CharmTracker
-Scrapes Etsy listings for James Avery charms
+Uses Etsy API v3 to fetch real-time listings and pricing data
+Documentation: https://developer.etsy.com/documentation/reference
 """
 
 import asyncio
@@ -8,166 +9,161 @@ import logging
 from typing import List, Dict, Optional
 from datetime import datetime
 import aiohttp
-from bs4 import BeautifulSoup
-import re
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 
 class EtsyScraper:
-    """Etsy scraper for charm listings"""
+    """Etsy scraper using official API v3"""
     
     def __init__(self):
-        self.base_url = "https://www.etsy.com"
-        self.search_url = f"{self.base_url}/search"
+        self.api_key = os.getenv('ETSY_API_KEY', '')
+        self.base_url = "https://openapi.etsy.com/v3"
         
+        if not self.api_key:
+            logger.warning("Etsy API key not configured. Get one from https://www.etsy.com/developers/")
+            self.use_api = False
+        else:
+            self.use_api = True
+    
     async def search_charm(
         self, 
         charm_name: str, 
         limit: int = 20
     ) -> List[Dict]:
         """
-        Search Etsy for a specific charm
+        Search Etsy for a specific charm using API v3
         Returns list of listings with prices and details
         """
+        if not self.use_api:
+            logger.warning("Etsy API not configured, returning empty results")
+            return []
+            
         try:
             query = f"james avery {charm_name}"
+            url = f"{self.base_url}/application/listings/active"
+            
+            params = {
+                'keywords': query,
+                'limit': limit,
+                'sort_on': 'relevancy',
+                'includes': 'Images,Shop'
+            }
+            
+            headers = {
+                'x-api-key': self.api_key,
+                'Accept': 'application/json'
+            }
+            
+            logger.info(f"Searching Etsy API for: {charm_name}")
             
             async with aiohttp.ClientSession() as session:
-                params = {
-                    'q': query,
-                    'explicit': 1,
-                    'page': 1
-                }
-                
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-                
-                async with session.get(
-                    self.search_url,
-                    params=params,
-                    headers=headers
-                ) as response:
+                async with session.get(url, params=params, headers=headers) as response:
                     if response.status != 200:
-                        logger.error(f"Etsy returned status {response.status}")
+                        error_text = await response.text()
+                        logger.error(f"Etsy API error: {response.status} - {error_text}")
                         return []
                     
-                    html = await response.text()
-                    return self._parse_search_results(html, limit)
+                    data = await response.json()
+                    results = data.get('results', [])
+                    
+                    listings = []
+                    for item in results:
+                        try:
+                            listing = self._parse_api_listing(item)
+                            if listing:
+                                listings.append(listing)
+                        except Exception as e:
+                            logger.debug(f"Error parsing Etsy listing: {str(e)}")
+                            continue
+                    
+                    logger.info(f"Found {len(listings)} Etsy listings")
+                    return listings
                     
         except Exception as e:
             logger.error(f"Error searching Etsy: {str(e)}")
             return []
     
-    def _parse_search_results(self, html: str, limit: int) -> List[Dict]:
-        """Parse Etsy search results HTML"""
-        listings = []
-        soup = BeautifulSoup(html, 'html.parser')
-        
-        # Etsy uses data attributes for listings
-        listing_cards = soup.find_all('div', {'data-search-results-listing': True})[:limit]
-        
-        for card in listing_cards:
-            try:
-                listing = self._parse_listing_card(card)
-                if listing:
-                    listings.append(listing)
-            except Exception as e:
-                logger.warning(f"Error parsing Etsy listing: {str(e)}")
-                continue
-        
-        logger.info(f"Found {len(listings)} Etsy listings")
-        return listings
-    
-    def _parse_listing_card(self, card) -> Optional[Dict]:
-        """Parse individual listing card"""
+    def _parse_api_listing(self, item: Dict) -> Optional[Dict]:
+        """Parse Etsy API listing response"""
         try:
-            # Title
-            title_elem = card.find('h3', class_='v2-listing-card__title')
-            if not title_elem:
+            # Extract price (Etsy returns price in smallest currency unit)
+            price_data = item.get('price', {})
+            amount = price_data.get('amount', 0)
+            divisor = price_data.get('divisor', 100)
+            price = float(amount) / float(divisor)
+            
+            if price <= 0:
                 return None
-            title = title_elem.get_text(strip=True)
             
-            # Price
-            price_elem = card.find('span', class_='currency-value')
-            if not price_elem:
-                return None
-            price_text = price_elem.get_text(strip=True)
-            price = self._parse_price(price_text)
+            # Extract listing URL
+            listing_id = item.get('listing_id', '')
+            url = f"https://www.etsy.com/listing/{listing_id}"
             
-            # Link
-            link_elem = card.find('a', class_='listing-link')
-            listing_url = link_elem['href'] if link_elem else ""
-            if listing_url and not listing_url.startswith('http'):
-                listing_url = f"{self.base_url}{listing_url}"
+            # Extract image URL
+            images = item.get('images', [])
+            image_url = images[0].get('url_570xN', '') if images else ""
             
-            # Image
-            img_elem = card.find('img', class_='wt-width-full')
-            image_url = img_elem.get('src', '') if img_elem else ""
+            # Extract shop info
+            shop = item.get('shop', {})
+            seller_name = shop.get('shop_name', 'Unknown')
             
-            # Seller
-            seller_elem = card.find('p', class_='v2-listing-card__shop')
-            seller_name = seller_elem.get_text(strip=True) if seller_elem else "Unknown"
-            
-            # Condition (Etsy is usually "handmade" or "vintage")
+            # Determine condition
             condition = "Handmade"
+            title = item.get('title', '')
             if 'vintage' in title.lower():
                 condition = "Vintage"
+            elif 'new' in title.lower():
+                condition = "New"
             
             return {
-                "title": title,
-                "price": price,
-                "url": listing_url,
-                "image_url": image_url,
-                "seller": seller_name,
-                "condition": condition,
-                "marketplace": "Etsy",
-                "scraped_at": datetime.utcnow().isoformat()
+                'platform': 'Etsy',
+                'title': title,
+                'price': price,
+                'url': url,
+                'condition': condition,
+                'image_url': image_url,
+                'seller': seller_name,
+                'shipping': 0.0,  # Would need additional API call for shipping
+                'scraped_at': datetime.utcnow().isoformat()
             }
             
         except Exception as e:
-            logger.error(f"Error parsing Etsy card: {str(e)}")
+            logger.error(f"Error parsing Etsy API listing: {str(e)}")
             return None
     
-    def _parse_price(self, price_text: str) -> float:
-        """Extract numeric price from text"""
-        try:
-            # Remove currency symbols and convert to float
-            price_str = re.sub(r'[^\d.]', '', price_text)
-            return float(price_str)
-        except:
-            return 0.0
-    
-    async def get_listing_details(self, listing_url: str) -> Optional[Dict]:
+    async def get_listing_details(self, listing_id: str) -> Optional[Dict]:
         """
-        Get detailed information from a specific listing page
+        Get detailed information from a specific listing using API
         """
+        if not self.use_api:
+            return None
+            
         try:
+            url = f"{self.base_url}/application/listings/{listing_id}"
+            
+            headers = {
+                'x-api-key': self.api_key,
+                'Accept': 'application/json'
+            }
+            
             async with aiohttp.ClientSession() as session:
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-                
-                async with session.get(listing_url, headers=headers) as response:
+                async with session.get(url, headers=headers) as response:
                     if response.status != 200:
                         return None
                     
-                    html = await response.text()
-                    soup = BeautifulSoup(html, 'html.parser')
-                    
-                    # Extract additional details
-                    description_elem = soup.find('p', {'data-product-details-description-text-content': True})
-                    description = description_elem.get_text(strip=True) if description_elem else ""
-                    
-                    # Shipping info
-                    shipping_elem = soup.find('span', {'data-shipping-cost': True})
-                    shipping = shipping_elem.get_text(strip=True) if shipping_elem else "Unknown"
+                    data = await response.json()
+                    item = data.get('result', {})
                     
                     return {
-                        "description": description,
-                        "shipping": shipping,
-                        "detailed_url": listing_url
+                        "description": item.get('description', ''),
+                        "tags": item.get('tags', []),
+                        "materials": item.get('materials', []),
+                        "quantity": item.get('quantity', 0)
                     }
                     
         except Exception as e:
