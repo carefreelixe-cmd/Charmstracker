@@ -58,6 +58,52 @@ export const CharmDetail = () => {
       const data = await charmAPI.getCharmById(id);
       setCharm(data);
 
+      // 🔍 DETAILED CONSOLE LOGGING FOR MARKETPLACE DATA
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📦 CHARM DATA RECEIVED:', data.name);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      // Log listings by platform
+      if (data.listings && data.listings.length > 0) {
+        console.log(`✅ Total Listings Found: ${data.listings.length}`);
+        
+        const ebayListings = data.listings.filter(l => l.platform === 'eBay');
+        const etsyListings = data.listings.filter(l => l.platform === 'Etsy');
+        const poshmarkListings = data.listings.filter(l => l.platform === 'Poshmark');
+        
+        console.log(`🛒 eBay: ${ebayListings.length} listings`);
+        if (ebayListings.length > 0) {
+          console.log('  Sample eBay listing:', ebayListings[0]);
+        }
+        
+        console.log(`🎨 Etsy: ${etsyListings.length} listings`);
+        if (etsyListings.length > 0) {
+          console.log('  Sample Etsy listing:', etsyListings[0]);
+        }
+        
+        console.log(`👗 Poshmark: ${poshmarkListings.length} listings`);
+        if (poshmarkListings.length > 0) {
+          console.log('  Sample Poshmark listing:', poshmarkListings[0]);
+        }
+        
+        // Log price data
+        console.log('\n💰 PRICE ANALYSIS:');
+        console.log(`  Average Price: $${data.average_price?.toFixed(2) || 'N/A'}`);
+        console.log(`  James Avery Price: $${data.james_avery_price?.toFixed(2) || 'N/A'}`);
+        
+        // Log images
+        console.log('\n🖼️ IMAGES:');
+        console.log(`  Total Images: ${data.images?.length || 0}`);
+        if (data.images && data.images.length > 0) {
+          console.log('  First Image URL:', data.images[0]);
+        }
+        
+      } else {
+        console.log('⚠️ NO LISTINGS FOUND for this charm');
+      }
+      
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
       // Fetch related charms
       if (data.related_charm_ids && data.related_charm_ids.length > 0) {
         const relatedPromises = data.related_charm_ids.slice(0, 4).map(relatedId =>
@@ -70,7 +116,7 @@ export const CharmDetail = () => {
       // Check marketplace availability
       checkMarketplaceAvailability(data.name);
     } catch (error) {
-      console.error('Error fetching charm detail:', error);
+      console.error('❌ Error fetching charm detail:', error);
     } finally {
       setLoading(false);
     }
@@ -88,15 +134,20 @@ export const CharmDetail = () => {
   const handleForceUpdate = async () => {
     try {
       setUpdating(true);
+      console.log('🔄 TRIGGERING CHARM UPDATE for ID:', id);
+      
       await charmAPI.updateCharm(id);
+      
+      console.log('✅ Update request sent, waiting for data refresh...');
       
       // Wait a few seconds then refresh
       setTimeout(async () => {
         await fetchCharmDetail();
         setUpdating(false);
+        console.log('✅ Charm data refreshed after update');
       }, 3000);
     } catch (error) {
-      console.error('Error updating charm:', error);
+      console.error('❌ Error updating charm:', error);
       setUpdating(false);
     }
   };

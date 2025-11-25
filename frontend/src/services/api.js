@@ -54,7 +54,10 @@ export const charmAPI = {
    * Get charm by ID
    */
   getCharmById: async (id) => {
-    return await apiFetch(`/api/charms/${id}`);
+    console.log(`🔍 API: Fetching charm data for ID: ${id}`);
+    const data = await apiFetch(`/api/charms/${id}`);
+    console.log(`✅ API: Received data for charm:`, data.name || 'Unknown');
+    return data;
   },
 
   /**
@@ -75,9 +78,15 @@ export const charmAPI = {
    * Trigger real-time update for a specific charm
    */
   updateCharm: async (charmId) => {
-    return await apiFetch(`/api/scraper/update/${charmId}`, {
+    console.log(`🔄 API: Triggering update for charm ID: ${charmId}`);
+    console.log(`📡 Endpoint: POST /api/scraper/update/${charmId}`);
+    
+    const result = await apiFetch(`/api/scraper/update/${charmId}`, {
       method: 'POST',
     });
+    
+    console.log(`✅ API: Update response:`, result);
+    return result;
   },
 
   /**

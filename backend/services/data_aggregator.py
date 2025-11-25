@@ -41,7 +41,9 @@ class DataAggregator:
                 return False
             
             charm_name = charm['name']
-            logger.info(f"Updating data for: {charm_name}")
+            logger.info(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            logger.info(f"🔄 UPDATING DATA FOR: {charm_name}")
+            logger.info(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             
             # Fetch current marketplace data
             tasks = [
@@ -61,7 +63,19 @@ class DataAggregator:
             # Current active listings from all platforms
             all_listings = ebay_data['current'] + etsy_data + poshmark_data
             
-            logger.info(f"Fetched {len(ebay_data['current'])} eBay, {len(etsy_data)} Etsy, {len(poshmark_data)} Poshmark listings for {charm_name}")
+            logger.info(f"📊 LISTING COUNTS:")
+            logger.info(f"  🛒 eBay: {len(ebay_data['current'])} listings")
+            logger.info(f"  🎨 Etsy: {len(etsy_data)} listings")
+            logger.info(f"  👗 Poshmark: {len(poshmark_data)} listings")
+            logger.info(f"  📦 Total: {len(all_listings)} listings")
+            
+            # Log sample data from each platform
+            if ebay_data['current']:
+                logger.info(f"  eBay Sample: ${ebay_data['current'][0].get('price', 0):.2f} - {ebay_data['current'][0].get('title', 'N/A')[:50]}")
+            if etsy_data:
+                logger.info(f"  Etsy Sample: ${etsy_data[0].get('price', 0):.2f} - {etsy_data[0].get('title', 'N/A')[:50]}")
+            if poshmark_data:
+                logger.info(f"  Poshmark Sample: ${poshmark_data[0].get('price', 0):.2f} - {poshmark_data[0].get('title', 'N/A')[:50]}")
             
             # Historical data for trends
             historical_data = await self._get_historical_data(charm_id, ebay_data['completed'])
@@ -73,6 +87,9 @@ class DataAggregator:
                 historical_data,
                 ja_data
             )
+            
+            logger.info(f"💰 Average Price: ${update_data.get('average_price', 0):.2f}")
+            logger.info(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
             
             # Update database
             result = await self.db.charms.update_one(
