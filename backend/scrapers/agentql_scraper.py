@@ -11,12 +11,13 @@ import time
 load_dotenv()
 
 class AgentQLMarketplaceScraper:
-    def __init__(self):
+    def __init__(self, headless=True):
         self.api_key = os.getenv('AGENTQL_API_KEY')
         if not self.api_key:
             raise ValueError("❌ AGENTQL_API_KEY not found in .env file")
         
-        print(f"🤖 [AGENTQL] Initialized with API key: {self.api_key[:20]}...")
+        self.headless = headless
+        print(f"🤖 [AGENTQL] Initialized with API key: {self.api_key[:20]}... (headless={headless})")
     
     def scrape_etsy(self, charm_name):
         """Scrape Etsy using AgentQL's AI-powered queries"""
@@ -24,21 +25,22 @@ class AgentQLMarketplaceScraper:
         
         with sync_playwright() as playwright:
             try:
-                # Launch persistent browser with Chrome profile (looks more human-like)
-                browser = playwright.chromium.launch_persistent_context(
-                    user_data_dir=os.path.join(os.getcwd(), "playwright_data"),
-                    channel="chrome" if os.path.exists("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe") else None,
-                    headless=False,  # Visible browser for debugging
-                    no_viewport=True,
+                # Launch browser with stealth settings
+                browser = playwright.chromium.launch(
+                    headless=self.headless,
                     args=[
                         '--disable-blink-features=AutomationControlled',
                         '--disable-dev-shm-usage',
                         '--no-sandbox'
                     ]
                 )
+                context = browser.new_context(
+                    viewport={'width': 1920, 'height': 1080},
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                )
                 
                 # Wrap page with AgentQL
-                page = agentql.wrap(browser.new_page())
+                page = agentql.wrap(context.new_page())
                 
                 # Navigate to Etsy search
                 url = f"https://www.etsy.com/search?q={charm_name.replace(' ', '+')}"
@@ -48,9 +50,10 @@ class AgentQLMarketplaceScraper:
                 # Wait a bit for JavaScript to render
                 time.sleep(3)
                 
-                # Take screenshot for debugging
-                page.screenshot(path="etsy_agentql_debug.png")
-                print("📸 [ETSY] Screenshot saved")
+                # Take screenshot for debugging (only if visible)
+                if not self.headless:
+                    page.screenshot(path="etsy_agentql_debug.png")
+                    print("📸 [ETSY] Screenshot saved")
                 
                 # Use natural language query to find products
                 QUERY = """
@@ -98,11 +101,14 @@ class AgentQLMarketplaceScraper:
                         print(f"  ⚠️ Error parsing product: {e}")
                         continue
                 
+                context.close()
                 browser.close()
                 return listings
                 
             except Exception as e:
                 print(f"❌ [ETSY] AgentQL error: {e}")
+                import traceback
+                traceback.print_exc()
                 return []
     
     def scrape_ebay(self, charm_name):
@@ -111,19 +117,20 @@ class AgentQLMarketplaceScraper:
         
         with sync_playwright() as playwright:
             try:
-                browser = playwright.chromium.launch_persistent_context(
-                    user_data_dir=os.path.join(os.getcwd(), "playwright_data"),
-                    channel="chrome" if os.path.exists("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe") else None,
-                    headless=False,
-                    no_viewport=True,
+                browser = playwright.chromium.launch(
+                    headless=self.headless,
                     args=[
                         '--disable-blink-features=AutomationControlled',
                         '--disable-dev-shm-usage',
                         '--no-sandbox'
                     ]
                 )
+                context = browser.new_context(
+                    viewport={'width': 1920, 'height': 1080},
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                )
                 
-                page = agentql.wrap(browser.new_page())
+                page = agentql.wrap(context.new_page())
                 
                 url = f"https://www.ebay.com/sch/i.html?_nkw={charm_name.replace(' ', '+')}&_sop=12"
                 print(f"🔗 [EBAY] Navigating to: {url}")
@@ -131,13 +138,15 @@ class AgentQLMarketplaceScraper:
                 
                 time.sleep(3)
                 
-                page.screenshot(path="ebay_agentql_debug.png")
-                print("📸 [EBAY] Screenshot saved")
+                if not self.headless:
+                    page.screenshot(path="ebay_agentql_debug.png")
+                    print("📸 [EBAY] Screenshot saved")
                 
                 # Check for bot detection
                 html = page.content()
                 if 'interrupt' in html.lower() or 'captcha' in html.lower() or 'challenge' in html.lower():
                     print("❌ [EBAY] Bot detection triggered even with AgentQL")
+                    context.close()
                     browser.close()
                     return []
                 
@@ -159,6 +168,7 @@ class AgentQLMarketplaceScraper:
                 
                 if not response or 'items' not in response:
                     print("⚠️ [EBAY] No items found in response")
+                    context.close()
                     browser.close()
                     return []
                 
@@ -186,11 +196,14 @@ class AgentQLMarketplaceScraper:
                         print(f"  ⚠️ Error parsing item: {e}")
                         continue
                 
+                context.close()
                 browser.close()
                 return listings
                 
             except Exception as e:
                 print(f"❌ [EBAY] AgentQL error: {e}")
+                import traceback
+                traceback.print_exc()
                 return []
     
     def scrape_poshmark(self, charm_name):
@@ -199,19 +212,20 @@ class AgentQLMarketplaceScraper:
         
         with sync_playwright() as playwright:
             try:
-                browser = playwright.chromium.launch_persistent_context(
-                    user_data_dir=os.path.join(os.getcwd(), "playwright_data"),
-                    channel="chrome" if os.path.exists("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe") else None,
-                    headless=False,
-                    no_viewport=True,
+                browser = playwright.chromium.launch(
+                    headless=self.headless,
                     args=[
                         '--disable-blink-features=AutomationControlled',
                         '--disable-dev-shm-usage',
                         '--no-sandbox'
                     ]
                 )
+                context = browser.new_context(
+                    viewport={'width': 1920, 'height': 1080},
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                )
                 
-                page = agentql.wrap(browser.new_page())
+                page = agentql.wrap(context.new_page())
                 
                 url = f"https://poshmark.com/search?query={charm_name.replace(' ', '+')}"
                 print(f"🔗 [POSHMARK] Navigating to: {url}")
@@ -219,8 +233,9 @@ class AgentQLMarketplaceScraper:
                 
                 time.sleep(3)
                 
-                page.screenshot(path="poshmark_agentql_debug.png")
-                print("📸 [POSHMARK] Screenshot saved")
+                if not self.headless:
+                    page.screenshot(path="poshmark_agentql_debug.png")
+                    print("📸 [POSHMARK] Screenshot saved")
                 
                 QUERY = """
                 {
@@ -240,6 +255,7 @@ class AgentQLMarketplaceScraper:
                 
                 if not response or 'listings' not in response:
                     print("⚠️ [POSHMARK] No listings found in response")
+                    context.close()
                     browser.close()
                     return []
                 
@@ -267,11 +283,14 @@ class AgentQLMarketplaceScraper:
                         print(f"  ⚠️ Error parsing listing: {e}")
                         continue
                 
+                context.close()
                 browser.close()
                 return listings
                 
             except Exception as e:
                 print(f"❌ [POSHMARK] AgentQL error: {e}")
+                import traceback
+                traceback.print_exc()
                 return []
     
     def scrape_all(self, charm_name):
@@ -303,7 +322,8 @@ def test_agentql_scraper():
     """Test the AgentQL scraper"""
     print("🧪 Testing AgentQL Scraper...\n")
     
-    scraper = AgentQLMarketplaceScraper()
+    # Use headless=False for testing so you can see browsers
+    scraper = AgentQLMarketplaceScraper(headless=False)
     results = scraper.scrape_all("West Virginia charm")
     
     print(f"\n{'='*60}")

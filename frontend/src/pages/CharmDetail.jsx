@@ -138,25 +138,27 @@ export const CharmDetail = () => {
   const handleFetchLivePrices = async () => {
     try {
       setUpdating(true);
-      console.log('🔍 FETCHING LIVE PRICES for charm:', charm.name);
+      console.log('🤖 FETCHING LIVE PRICES (Running in background)...');
+      console.log('   Charm:', charm.name);
+      console.log('   Scraping Etsy, eBay, Poshmark with AgentQL AI...');
       
       const result = await charmAPI.fetchLivePrices(id);
       
-      console.log('✅ Live prices fetched:');
+      console.log('✅ Live prices fetched successfully!');
       console.log(`   🎨 Etsy: ${result.summary.etsy.count} listings`);
       console.log(`   🛒 eBay: ${result.summary.ebay.count} listings`);
       console.log(`   👗 Poshmark: ${result.summary.poshmark.count} listings`);
       console.log(`   💰 Average: $${result.average_price}`);
       
-      // Refresh charm data
+      // Refresh charm data to show new listings
       await fetchCharmDetail();
       setUpdating(false);
       
-      alert(`✅ Live prices fetched!\n\nEtsy: ${result.summary.etsy.count} listings\neBay: ${result.summary.ebay.count} listings\nPoshmark: ${result.summary.poshmark.count} listings\n\nAverage Price: $${result.average_price}`);
+      alert(`✅ Successfully fetched ${result.total_listings} live prices!\n\n🎨 Etsy: ${result.summary.etsy.count} listings\n🛒 eBay: ${result.summary.ebay.count} listings\n👗 Poshmark: ${result.summary.poshmark.count} listings\n\n💰 New Average Price: $${result.average_price}`);
     } catch (error) {
       console.error('❌ Error fetching live prices:', error);
       setUpdating(false);
-      alert('❌ Error fetching live prices. Check console for details.');
+      alert('❌ Error fetching live prices. Please try again.');
     }
   };
 
@@ -340,10 +342,19 @@ export const CharmDetail = () => {
                 cursor: updating ? 'wait' : 'pointer',
                 fontWeight: '600'
               }}
-              title="Fetch live prices from Etsy, eBay, and Poshmark"
+              title="Fetch live prices from Etsy, eBay, and Poshmark using AI"
             >
-              <RefreshCw className={`w-4 h-4 ${updating ? 'animate-spin' : ''}`} />
-              {updating ? 'Fetching...' : '🔍 Fetch Live Prices'}
+              {updating ? (
+                <>
+                  <div className="animate-spin h-4 w-4 border-2 border-gray-600 border-t-transparent rounded-full"></div>
+                  <span>Scraping Etsy, eBay, Poshmark...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  🔍 Fetch Live Prices
+                </>
+              )}
             </button>
             <button
               onClick={handleRefreshAllData}
@@ -623,43 +634,72 @@ export const CharmDetail = () => {
                 Updated {realtimeUtils.timeSinceUpdate(charm.last_updated)}
               </span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {charm.listings.slice(0, 9).map((listing, index) => (
-                <a
-                  key={index}
-                  href={listing.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-white p-6 transition-smooth hover:shadow-lg"
-                  style={{ border: '1px solid #bcbcbc', borderRadius: '0px', textDecoration: 'none' }}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="body-regular font-semibold" style={{ color: '#333333' }}>
-                      {listing.platform}
+
+            {/* Group listings by platform */}
+            {['eBay', 'Etsy', 'Poshmark'].map(platform => {
+              const platformListings = charm.listings.filter(l => l.platform === platform);
+              if (platformListings.length === 0) return null;
+
+              return (
+                <div key={platform} className="mb-8 last:mb-0">
+                  <h3 className="heading-3 mb-4 flex items-center gap-2">
+                    {platform === 'eBay' && '🛒'}
+                    {platform === 'Etsy' && '🎨'}
+                    {platform === 'Poshmark' && '👗'}
+                    {platform}
+                    <span className="body-small" style={{ color: '#666666' }}>
+                      ({platformListings.length} listings)
                     </span>
-                    <ExternalLink className="w-4 h-4" style={{ color: '#c9a94d' }} />
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {platformListings.map((listing, index) => (
+                      <a
+                        key={index}
+                        href={listing.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white p-4 transition-smooth hover:shadow-lg"
+                        style={{ border: '1px solid #bcbcbc', borderRadius: '0px', textDecoration: 'none' }}
+                      >
+                        {/* Image */}
+                        {listing.image_url && (
+                          <div className="mb-3 w-full h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
+                            <img
+                              src={listing.image_url}
+                              alt={listing.title}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        {/* Title */}
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h4 className="body-regular font-semibold line-clamp-2 flex-1" style={{ color: '#333333' }}>
+                            {listing.title}
+                          </h4>
+                          <ExternalLink className="w-4 h-4 flex-shrink-0" style={{ color: '#c9a94d' }} />
+                        </div>
+
+                        {/* Price */}
+                        <div className="flex items-baseline gap-2 mb-2">
+                          <span className="text-2xl font-semibold" style={{ color: '#333333' }}>
+                            ${listing.price.toFixed(2)}
+                          </span>
+                        </div>
+
+                        {/* Condition */}
+                        <p className="body-small" style={{ color: '#666666' }}>
+                          Condition: {listing.condition || 'Not specified'}
+                        </p>
+                      </a>
+                    ))}
                   </div>
-                  <div className="flex items-baseline gap-2 mb-2">
-                    <span className="text-2xl font-semibold" style={{ color: '#333333' }}>
-                      ${listing.price.toFixed(2)}
-                    </span>
-                    {listing.shipping > 0 && (
-                      <span className="body-small" style={{ color: '#666666' }}>
-                        +${listing.shipping} shipping
-                      </span>
-                    )}
-                  </div>
-                  <p className="body-small" style={{ color: '#666666' }}>
-                    Condition: {listing.condition}
-                  </p>
-                  {listing.seller && (
-                    <p className="body-small" style={{ color: '#999999' }}>
-                      Seller: {listing.seller}
-                    </p>
-                  )}
-                </a>
-              ))}
-            </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="mb-16 bg-white p-8" style={{ border: '1px solid #bcbcbc', borderRadius: '0px' }}>
