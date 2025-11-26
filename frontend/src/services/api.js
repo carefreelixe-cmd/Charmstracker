@@ -98,6 +98,18 @@ export const charmAPI = {
   },
 
   /**
+   * Fetch live prices from Etsy, eBay, and Poshmark using direct web scraping
+   */
+  fetchLivePrices: async (charmId) => {
+    console.log(`🔄 Fetching live prices for charm: ${charmId}`);
+    const result = await apiFetch(`/api/scraper/fetch-live-prices/${charmId}`, {
+      method: 'POST',
+    });
+    console.log('✅ Live prices fetched:', result);
+    return result;
+  },
+
+  /**
    * Get scraper status
    */
   getScraperStatus: async () => {

@@ -51,7 +51,8 @@ class PoshmarkScraper:
             # Build Poshmark search URL
             search_url = f"{self.poshmark_url}/search?query={search_query.replace(' ', '%20')}&department=Jewelry"
             
-            logger.info(f"Searching Poshmark via Apify for: {charm_name}")
+            logger.info(f"👗 [POSHMARK] Searching for: {charm_name}")
+            logger.info(f"   Search URL: {search_url}")
             
             # Start Apify actor
             run_id = await self._start_apify_actor(search_url)
@@ -63,7 +64,14 @@ class PoshmarkScraper:
             
             # Parse and format results
             listings = self._parse_apify_results(results, limit)
-            logger.info(f"Found {len(listings)} Poshmark listings")
+            logger.info(f"👗 [POSHMARK] Found {len(listings)} listings")
+            
+            # Log sample data
+            if listings:
+                sample = listings[0]
+                logger.info(f"   Sample listing: {sample.get('title', 'N/A')[:50]}")
+                logger.info(f"   Price: ${sample.get('price', 0)}")
+                logger.info(f"   URL: {sample.get('url', 'N/A')}")
             
             return listings
                         

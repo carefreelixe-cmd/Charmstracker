@@ -83,7 +83,11 @@ export const CharmDetail = () => {
         
         console.log(`👗 Poshmark: ${poshmarkListings.length} listings`);
         if (poshmarkListings.length > 0) {
+          console.log('  ✅ POSHMARK DATA IS WORKING!');
           console.log('  Sample Poshmark listing:', poshmarkListings[0]);
+          console.log('  Poshmark Prices:', poshmarkListings.map(l => `$${l.price}`).join(', '));
+        } else {
+          console.log('  ⚠️ NO POSHMARK DATA - Check backend logs');
         }
         
         // Log price data
@@ -128,6 +132,31 @@ export const CharmDetail = () => {
       setMarketplaceStatus(status);
     } catch (error) {
       console.error('Error checking marketplace:', error);
+    }
+  };
+
+  const handleFetchLivePrices = async () => {
+    try {
+      setUpdating(true);
+      console.log('🔍 FETCHING LIVE PRICES for charm:', charm.name);
+      
+      const result = await charmAPI.fetchLivePrices(id);
+      
+      console.log('✅ Live prices fetched:');
+      console.log(`   🎨 Etsy: ${result.summary.etsy.count} listings`);
+      console.log(`   🛒 eBay: ${result.summary.ebay.count} listings`);
+      console.log(`   👗 Poshmark: ${result.summary.poshmark.count} listings`);
+      console.log(`   💰 Average: $${result.average_price}`);
+      
+      // Refresh charm data
+      await fetchCharmDetail();
+      setUpdating(false);
+      
+      alert(`✅ Live prices fetched!\n\nEtsy: ${result.summary.etsy.count} listings\neBay: ${result.summary.ebay.count} listings\nPoshmark: ${result.summary.poshmark.count} listings\n\nAverage Price: $${result.average_price}`);
+    } catch (error) {
+      console.error('❌ Error fetching live prices:', error);
+      setUpdating(false);
+      alert('❌ Error fetching live prices. Check console for details.');
     }
   };
 
@@ -299,6 +328,24 @@ export const CharmDetail = () => {
               {updating ? 'Updating...' : 'Refresh Charm'}
             </button>
             <button
+              onClick={handleFetchLivePrices}
+              disabled={updating}
+              className="flex items-center gap-2 px-4 py-2 transition-smooth flex-1 sm:flex-initial"
+              style={{
+                background: updating ? '#f3f3f3' : '#2d8659',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '0px',
+                opacity: updating ? 0.6 : 1,
+                cursor: updating ? 'wait' : 'pointer',
+                fontWeight: '600'
+              }}
+              title="Fetch live prices from Etsy, eBay, and Poshmark"
+            >
+              <RefreshCw className={`w-4 h-4 ${updating ? 'animate-spin' : ''}`} />
+              {updating ? 'Fetching...' : '🔍 Fetch Live Prices'}
+            </button>
+            <button
               onClick={handleRefreshAllData}
               disabled={scraperRunning}
               className="flex items-center gap-2 px-4 py-2 transition-smooth flex-1 sm:flex-initial"
@@ -322,7 +369,7 @@ export const CharmDetail = () => {
         <div className="mb-6 p-3 flex items-center gap-2" style={{ background: '#f6f5e8', border: '1px solid #c9a94d' }}>
           <CheckCircle className="w-5 h-5" style={{ color: '#c9a94d' }} />
           <span className="body-small" style={{ color: '#666666' }}>
-            <strong>Auto-Update:</strong> Data automatically refreshes from marketplace sources. Use the buttons above to manually trigger updates.
+            <strong>Auto-Update:</strong> Data automatically refreshes from marketplace sources. Use "Fetch Live Prices" to get real-time data from Etsy, eBay, and Poshmark.
           </span>
         </div>
 

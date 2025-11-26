@@ -173,9 +173,9 @@ async def check_marketplace_availability(charm_name: str):
     Quick check without full update
     """
     try:
-        from scrapers.ebay_scraper import ebay_scraper
-        from scrapers.etsy_scraper import etsy_scraper
-        from scrapers.poshmark_scraper import poshmark_scraper
+        from ..scrapers.ebay_scraper import ebay_scraper
+        from ..scrapers.etsy_scraper import etsy_scraper
+        from ..scrapers.poshmark_scraper import poshmark_scraper
         
         # Quick search on each platform (limit 5)
         import asyncio
@@ -218,4 +218,94 @@ async def check_marketplace_availability(charm_name: str):
         
     except Exception as e:
         logger.error(f"Error checking marketplace availability: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/fetch-live-prices/{charm_id}")
+async def fetch_live_prices(charm_id: str):
+    """
+    Fetch live prices from Etsy, eBay, and Poshmark using AgentQL AI-powered scraping
+    Updates the database with fresh marketplace data
+    """
+    try:
+        from ..scrapers.agentql_scraper import AgentQLMarketplaceScraper
+        
+        # Get charm from database
+        db = get_database()
+        charm = await db.charms.find_one({"_id": charm_id})
+        
+        if not charm:
+            raise HTTPException(status_code=404, detail="Charm not found")
+        
+        charm_name = charm.get('name', '')
+        logger.info(f"🤖 Fetching live prices with AgentQL for: {charm_name}")
+        
+        # Use AgentQL scraper (runs synchronously in thread)
+        import asyncio
+        scraper = AgentQLMarketplaceScraper()
+        
+        # Run in executor to avoid blocking
+        loop = asyncio.get_event_loop()
+        all_listings = await loop.run_in_executor(None, scraper.scrape_all, charm_name)
+        
+        # Organize by platform
+        etsy_listings = [l for l in all_listings if l['platform'] == 'Etsy']
+        ebay_listings = [l for l in all_listings if l['platform'] == 'eBay']
+        poshmark_listings = [l for l in all_listings if l['platform'] == 'Poshmark']
+        
+        # Calculate average price
+        prices = [l['price'] for l in all_listings if l['price'] > 0]
+        average_price = sum(prices) / len(prices) if prices else charm.get('average_price', 0)
+        
+        # Extract images
+        images = [l['image_url'] for l in all_listings if l.get('image_url')]
+        
+        # Update database
+        update_data = {
+            'listings': all_listings,
+            'average_price': round(average_price, 2),
+            'last_updated': datetime.utcnow(),
+            'listing_count': len(all_listings)
+        }
+        
+        # Add images if we found new ones
+        if images:
+            existing_images = charm.get('images', [])
+            all_images = list(set(existing_images + images[:5]))  # Add top 5 new images
+            update_data['images'] = all_images
+        
+        await db.charms.update_one(
+            {"_id": charm_id},
+            {"$set": update_data}
+        )
+        
+        logger.info(f"✅ Updated {charm_name}: {len(all_listings)} listings, avg ${average_price:.2f}")
+        
+        return {
+            "success": True,
+            "charm_id": charm_id,
+            "charm_name": charm_name,
+            "summary": {
+                "etsy": {
+                    "count": len(etsy_listings),
+                    "listings": etsy_listings
+                },
+                "ebay": {
+                    "count": len(ebay_listings),
+                    "listings": ebay_listings
+                },
+                "poshmark": {
+                    "count": len(poshmark_listings),
+                    "listings": poshmark_listings
+                }
+            },
+            "total_listings": len(all_listings),
+            "average_price": round(average_price, 2),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error fetching live prices with AgentQL: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

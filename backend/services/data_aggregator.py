@@ -77,14 +77,10 @@ class DataAggregator:
             if poshmark_data:
                 logger.info(f"  Poshmark Sample: ${poshmark_data[0].get('price', 0):.2f} - {poshmark_data[0].get('title', 'N/A')[:50]}")
             
-            # Historical data for trends
-            historical_data = await self._get_historical_data(charm_id, ebay_data['completed'])
-            
             # Calculate aggregated metrics
             update_data = await self._calculate_aggregated_data(
                 charm,
                 all_listings,
-                historical_data,
                 ja_data
             )
             
