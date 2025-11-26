@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List
 import uuid
 from datetime import datetime, timezone
+import sys
 
 # Import routes
 from .routes.charms import router as charms_router
@@ -21,6 +22,34 @@ from .services.scheduler import start_scheduler, stop_scheduler
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Setup logging to file
+class TeeLogger:
+    """Logger that writes to both console and file"""
+    def __init__(self, filepath):
+        self.file = open(filepath, 'a', encoding='utf-8')
+        self.stdout = sys.stdout
+        self.stderr = sys.stderr
+        
+    def write(self, message):
+        self.stdout.write(message)
+        self.file.write(message)
+        self.file.flush()
+        
+    def flush(self):
+        self.stdout.flush()
+        self.file.flush()
+
+# Redirect stdout and stderr to note.txt
+log_file = ROOT_DIR / 'note.txt'
+tee_logger = TeeLogger(log_file)
+sys.stdout = tee_logger
+sys.stderr = tee_logger
+
+print(f"\n{'='*60}")
+print(f"SERVER STARTED AT: {datetime.now()}")
+print(f"Logging to: {log_file}")
+print(f"{'='*60}\n")
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -91,7 +120,10 @@ app.add_middleware(
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
 )
 logger = logging.getLogger(__name__)
 

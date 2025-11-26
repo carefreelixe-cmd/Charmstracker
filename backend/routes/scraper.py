@@ -224,11 +224,11 @@ async def check_marketplace_availability(charm_name: str):
 @router.post("/fetch-live-prices/{charm_id}")
 async def fetch_live_prices(charm_id: str):
     """
-    Fetch live prices from Etsy, eBay, and Poshmark using AgentQL AI-powered scraping
+    Fetch live prices from Etsy, eBay, and Poshmark using ScraperAPI
     Updates the database with fresh marketplace data
     """
     try:
-        from ..scrapers.agentql_scraper import AgentQLMarketplaceScraper
+        from ..scrapers.scraperapi_client import ScraperAPIClient
         
         # Get charm from database
         db = get_database()
@@ -238,20 +238,20 @@ async def fetch_live_prices(charm_id: str):
             raise HTTPException(status_code=404, detail="Charm not found")
         
         charm_name = charm.get('name', '')
-        logger.info(f"🤖 Fetching live prices with AgentQL for: {charm_name}")
+        logger.info(f"📡 Fetching live prices with ScraperAPI for: {charm_name}")
         
-        # Use AgentQL scraper (runs synchronously in thread)
+        # Use ScraperAPI client (runs synchronously in thread)
         import asyncio
-        scraper = AgentQLMarketplaceScraper()
+        scraper = ScraperAPIClient()
         
         # Run in executor to avoid blocking
         loop = asyncio.get_event_loop()
-        all_listings = await loop.run_in_executor(None, scraper.scrape_all, charm_name)
+        all_listings = await loop.run_in_executor(None, scraper.scrape_all, f"James Avery {charm_name}")
         
         # Organize by platform
-        etsy_listings = [l for l in all_listings if l['platform'] == 'Etsy']
-        ebay_listings = [l for l in all_listings if l['platform'] == 'eBay']
-        poshmark_listings = [l for l in all_listings if l['platform'] == 'Poshmark']
+        etsy_listings = [l for l in all_listings if l.get('platform') == 'etsy']
+        ebay_listings = [l for l in all_listings if l.get('platform') == 'ebay']
+        poshmark_listings = [l for l in all_listings if l.get('platform') == 'poshmark']
         
         # Calculate average price
         prices = [l['price'] for l in all_listings if l['price'] > 0]

@@ -1,0 +1,336 @@
+"""
+ScraperAPI Client - Uses ScraperAPI to bypass bot detection and fetch HTML
+API handles proxies, CAPTCHAs, and JavaScript rendering automatically
+"""
+import requests
+import logging
+from typing import List, Dict, Optional
+from bs4 import BeautifulSoup
+import re
+import time
+
+logger = logging.getLogger(__name__)
+
+
+class ScraperAPIClient:
+    """Client for fetching web pages through ScraperAPI"""
+    
+    def __init__(self, api_key='0afc0ab6e056e61161c0097ebbb5231a'):
+        self.api_key = api_key
+        self.base_url = 'https://api.scraperapi.com/'
+        logger.info(f"🔧 ScraperAPI initialized with key: {api_key[:20]}...")
+    
+    def fetch_page(self, url: str, render_js=True) -> Optional[str]:
+        """
+        Fetch HTML content from a URL using ScraperAPI
+        
+        Args:
+            url: The target URL to scrape
+            render_js: Whether to render JavaScript (default: True)
+            
+        Returns:
+            HTML content as string, or None if failed
+        """
+        try:
+            payload = {
+                'api_key': self.api_key,
+                'url': url,
+                'render': 'true' if render_js else 'false'
+            }
+            
+            logger.info(f"📡 Fetching: {url}")
+            response = requests.get(self.base_url, params=payload, timeout=60)
+            
+            if response.status_code == 200:
+                logger.info(f"✅ Successfully fetched {len(response.text)} bytes")
+                return response.text
+            else:
+                logger.error(f"❌ ScraperAPI returned status {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error fetching page: {e}")
+            return None
+    
+    def scrape_etsy(self, charm_name: str) -> List[Dict]:
+        """Scrape Etsy marketplace using ScraperAPI"""
+        try:
+            # Use market page format for better scraping
+            formatted_term = charm_name.lower().replace(' ', '_')
+            url = f"https://www.etsy.com/market/{formatted_term}"
+            
+            logger.info(f"🎨 [ETSY] Scraping: {charm_name}")
+            html = self.fetch_page(url, render_js=True)
+            
+            if not html:
+                return []
+            
+            soup = BeautifulSoup(html, 'html.parser')
+            listings = []
+            
+            # Find listing cards with multiple selectors
+            listing_cards = soup.find_all('div', class_='v2-listing-card')
+            if not listing_cards:
+                listing_cards = soup.find_all('div', attrs={'data-listing-id': True})
+            
+            logger.info(f"🎨 [ETSY] Found {len(listing_cards)} listing cards")
+            
+            for card in listing_cards[:15]:
+                try:
+                    # Find title - multiple approaches
+                    title_elem = card.find('h2', class_='wt-text-caption') or \
+                                card.find('h3', class_='v2-listing-card__title') or \
+                                card.find('h2', id=lambda x: x and 'listing-title' in x)
+                    title = title_elem.text.strip() if title_elem else None
+                    
+                    # Find price - look for currency-value span
+                    price_elem = card.find('span', class_='currency-value')
+                    price = None
+                    if price_elem:
+                        price_text = price_elem.text.strip()
+                        price = float(re.sub(r'[^\d.]', '', price_text))
+                    
+                    # Fallback: look in price paragraph
+                    if not price:
+                        price_p = card.find('p', class_='wt-text-title-01')
+                        if price_p:
+                            price_match = re.search(r'\$?([\d,]+\.?\d*)', price_p.text)
+                            if price_match:
+                                price = float(price_match.group(1).replace(',', ''))
+                    
+                    # Find URL
+                    link_elem = card.find('a', class_='listing-link')
+                    url_val = link_elem.get('href') if link_elem else None
+                    if url_val and not url_val.startswith('http'):
+                        url_val = 'https://www.etsy.com' + url_val
+                    
+                    # Find image
+                    img_elem = card.find('img', {'data-listing-card-listing-image': True})
+                    if not img_elem:
+                        img_elem = card.find('img', class_='wt-image')
+                    image_url = img_elem.get('src') if img_elem else None
+                    
+                    if title and price and url_val:
+                        listings.append({
+                            'platform': 'etsy',
+                            'marketplace': 'Etsy',
+                            'title': title[:200],
+                            'price': price,
+                            'url': url_val,
+                            'condition': 'New',
+                            'seller': 'Etsy Seller',
+                            'image_url': image_url
+                        })
+                    
+                except Exception as e:
+                    logger.debug(f"⚠️ Parse error: {e}")
+                    continue
+            
+            logger.info(f"✅ [ETSY] Parsed {len(listings)} listings")
+            return listings
+            
+        except Exception as e:
+            logger.error(f"❌ [ETSY] Error: {e}")
+            return []
+    
+    def scrape_ebay(self, charm_name: str) -> List[Dict]:
+        """Scrape eBay using ScraperAPI"""
+        try:
+            search_query = charm_name.replace(' ', '+')
+            url = f"https://www.ebay.com/sch/i.html?_nkw={search_query}&_sop=12"
+            
+            logger.info(f"🛒 [EBAY] Scraping: {charm_name}")
+            html = self.fetch_page(url, render_js=True)
+            
+            if not html:
+                return []
+            
+            soup = BeautifulSoup(html, 'html.parser')
+            listings = []
+            
+            # Look for eBay item cards
+            items = soup.find_all('li', class_='s-item')
+            logger.info(f"🛒 [EBAY] Found {len(items)} items")
+            
+            for item in items[:20]:
+                try:
+                    # Skip if it's an ad
+                    title_elem = item.find('div', class_='s-item__title')
+                    if not title_elem:
+                        continue
+                    
+                    title = title_elem.get_text(strip=True)
+                    if 'shop on ebay' in title.lower():
+                        continue
+                    
+                    # Get price
+                    price_elem = item.find('span', class_='s-item__price')
+                    if not price_elem:
+                        continue
+                    
+                    price_text = price_elem.get_text(strip=True)
+                    price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                    if not price_match:
+                        continue
+                    
+                    price = float(price_match.group())
+                    
+                    # Get URL
+                    link = item.find('a', class_='s-item__link')
+                    url_val = link.get('href', '') if link else ''
+                    
+                    # Get condition
+                    cond_elem = item.find('span', class_='SECONDARY_INFO')
+                    condition = cond_elem.get_text(strip=True) if cond_elem else 'Used'
+                    
+                    # Get image
+                    img = item.find('img')
+                    image_url = img.get('src') if img else None
+                    
+                    listings.append({
+                        'platform': 'ebay',
+                        'marketplace': 'eBay',
+                        'title': title[:200],
+                        'price': price,
+                        'url': url_val,
+                        'condition': condition,
+                        'seller': 'eBay Seller',
+                        'image_url': image_url
+                    })
+                    
+                except Exception as e:
+                    logger.debug(f"⚠️ Parse error: {e}")
+                    continue
+            
+            logger.info(f"✅ [EBAY] Parsed {len(listings)} listings")
+            return listings
+            
+        except Exception as e:
+            logger.error(f"❌ [EBAY] Error: {e}")
+            return []
+    
+    def scrape_poshmark(self, charm_name: str) -> List[Dict]:
+        """Scrape Poshmark using ScraperAPI"""
+        try:
+            search_query = charm_name.replace(' ', '+')
+            url = f"https://poshmark.com/search?query={search_query}"
+            
+            logger.info(f"👗 [POSHMARK] Scraping: {charm_name}")
+            html = self.fetch_page(url, render_js=True)
+            
+            if not html:
+                return []
+            
+            soup = BeautifulSoup(html, 'html.parser')
+            listings = []
+            
+            # Look for Poshmark tiles
+            tiles = soup.find_all('div', class_=re.compile(r'tile'))
+            logger.info(f"👗 [POSHMARK] Found {len(tiles)} tiles")
+            
+            for tile in tiles[:20]:
+                try:
+                    # Find price
+                    price_elem = tile.find('span', class_=re.compile(r'price'))
+                    if not price_elem:
+                        price_elem = tile.find('p', class_='h1')
+                    if not price_elem:
+                        continue
+                    
+                    price_text = price_elem.get_text(strip=True)
+                    price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                    if not price_match:
+                        continue
+                    
+                    price = float(price_match.group())
+                    
+                    # Find link
+                    link = tile.find('a', href=re.compile(r'/listing/'))
+                    if not link:
+                        continue
+                    
+                    url_val = link.get('href', '')
+                    if url_val and not url_val.startswith('http'):
+                        url_val = f"https://poshmark.com{url_val}"
+                    
+                    title = link.get('title') or link.get_text(strip=True) or 'Poshmark Listing'
+                    
+                    # Find image
+                    img = tile.find('img')
+                    image_url = img.get('src') or img.get('data-src') if img else None
+                    
+                    listings.append({
+                        'platform': 'poshmark',
+                        'marketplace': 'Poshmark',
+                        'title': title[:200],
+                        'price': price,
+                        'url': url_val,
+                        'condition': 'Pre-owned',
+                        'seller': 'Poshmark Seller',
+                        'image_url': image_url
+                    })
+                    
+                except Exception as e:
+                    logger.debug(f"⚠️ Parse error: {e}")
+                    continue
+            
+            logger.info(f"✅ [POSHMARK] Parsed {len(listings)} listings")
+            return listings
+            
+        except Exception as e:
+            logger.error(f"❌ [POSHMARK] Error: {e}")
+            return []
+    
+    def scrape_all(self, charm_name: str) -> List[Dict]:
+        """Scrape all marketplaces for a charm"""
+        logger.info(f"\n{'='*60}")
+        logger.info(f"🔍 Scraping all marketplaces for: {charm_name}")
+        logger.info(f"{'='*60}")
+        
+        all_listings = []
+        
+        # Scrape each marketplace with small delays
+        etsy_listings = self.scrape_etsy(charm_name)
+        all_listings.extend(etsy_listings)
+        time.sleep(1)
+        
+        ebay_listings = self.scrape_ebay(charm_name)
+        all_listings.extend(ebay_listings)
+        time.sleep(1)
+        
+        poshmark_listings = self.scrape_poshmark(charm_name)
+        all_listings.extend(poshmark_listings)
+        
+        logger.info(f"\n{'='*60}")
+        logger.info(f"📊 TOTAL: {len(all_listings)} listings found")
+        logger.info(f"   🎨 Etsy: {len(etsy_listings)}")
+        logger.info(f"   🛒 eBay: {len(ebay_listings)}")
+        logger.info(f"   👗 Poshmark: {len(poshmark_listings)}")
+        logger.info(f"{'='*60}\n")
+        
+        return all_listings
+
+
+# Test function
+if __name__ == "__main__":
+    import json
+    
+    print("🧪 Testing ScraperAPI Client\n")
+    
+    scraper = ScraperAPIClient()
+    results = scraper.scrape_all("James Avery Jesus Loves Me Charm")
+    
+    print(f"\n{'='*60}")
+    print(f"📊 RESULTS: {len(results)} total listings")
+    print(f"{'='*60}\n")
+    
+    for listing in results[:10]:
+        print(f"{listing['marketplace']}: {listing['title'][:60]}...")
+        print(f"  💰 ${listing['price']}")
+        print(f"  🔗 {listing['url'][:80]}\n")
+    
+    # Save results
+    with open('test_scraperapi_results.json', 'w', encoding='utf-8') as f:
+        json.dump(results, f, indent=2)
+    
+    print(f"💾 Results saved to: test_scraperapi_results.json")
