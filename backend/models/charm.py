@@ -12,10 +12,13 @@ class PriceHistoryEntry(BaseModel):
 
 class Listing(BaseModel):
     platform: str  # "eBay", "Poshmark", "Etsy", "JamesAvery"
+    title: Optional[str] = None
     price: float
-    url: str
+    url: Optional[str] = None
+    image_url: Optional[str] = None
     condition: str
     seller: Optional[str] = None
+    marketplace: Optional[str] = None  # Display name: "eBay", "Poshmark", "Etsy"
     scraped_at: datetime = Field(default_factory=datetime.utcnow)
 
 

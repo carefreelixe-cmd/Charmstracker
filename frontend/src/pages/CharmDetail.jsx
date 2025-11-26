@@ -67,9 +67,9 @@ export const CharmDetail = () => {
       if (data.listings && data.listings.length > 0) {
         console.log(`✅ Total Listings Found: ${data.listings.length}`);
         
-        const ebayListings = data.listings.filter(l => l.platform === 'eBay');
-        const etsyListings = data.listings.filter(l => l.platform === 'Etsy');
-        const poshmarkListings = data.listings.filter(l => l.platform === 'Poshmark');
+        const ebayListings = data.listings.filter(l => l.platform === 'ebay');
+        const etsyListings = data.listings.filter(l => l.platform === 'etsy');
+        const poshmarkListings = data.listings.filter(l => l.platform === 'poshmark');
         
         console.log(`🛒 eBay: ${ebayListings.length} listings`);
         if (ebayListings.length > 0) {
@@ -636,66 +636,73 @@ export const CharmDetail = () => {
             </div>
 
             {/* Group listings by platform */}
-            {['eBay', 'Etsy', 'Poshmark'].map(platform => {
+            {['ebay', 'etsy', 'poshmark'].map(platform => {
               const platformListings = charm.listings.filter(l => l.platform === platform);
               if (platformListings.length === 0) return null;
 
               return (
                 <div key={platform} className="mb-8 last:mb-0">
-                  <h3 className="heading-3 mb-4 flex items-center gap-2">
-                    {platform === 'eBay' && '🛒'}
-                    {platform === 'Etsy' && '🎨'}
-                    {platform === 'Poshmark' && '👗'}
-                    {platform}
+                  <h3 className="heading-3 flex items-center gap-2 mb-4">
+                    {platform === 'ebay' && '🛒'}
+                    {platform === 'etsy' && '🎨'}
+                    {platform === 'poshmark' && '👗'}
+                    {platform.charAt(0).toUpperCase() + platform.slice(1)}
                     <span className="body-small" style={{ color: '#666666' }}>
                       ({platformListings.length} listings)
                     </span>
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {platformListings.map((listing, index) => (
-                      <a
-                        key={index}
-                        href={listing.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-white p-4 transition-smooth hover:shadow-lg"
-                        style={{ border: '1px solid #bcbcbc', borderRadius: '0px', textDecoration: 'none' }}
-                      >
-                        {/* Image */}
-                        {listing.image_url && (
-                          <div className="mb-3 w-full h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
-                            <img
-                              src={listing.image_url}
-                              alt={listing.title}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                              }}
-                            />
+                    {platformListings.map((listing, index) => {
+                      const ListingCard = listing.url ? 'a' : 'div';
+                      const linkProps = listing.url ? {
+                        href: listing.url,
+                        target: "_blank",
+                        rel: "noopener noreferrer"
+                      } : {};
+                      
+                      return (
+                        <ListingCard
+                          key={index}
+                          {...linkProps}
+                          className="bg-white p-4 transition-smooth hover:shadow-lg"
+                          style={{ border: '1px solid #bcbcbc', borderRadius: '0px', textDecoration: 'none', cursor: listing.url ? 'pointer' : 'default' }}
+                        >
+                          {/* Image */}
+                          {listing.image_url && (
+                            <div className="mb-3 w-full h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
+                              <img
+                                src={listing.image_url}
+                                alt={listing.title}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          )}
+
+                          {/* Title */}
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h4 className="body-regular font-semibold line-clamp-2 flex-1" style={{ color: '#333333' }}>
+                              {listing.title}
+                            </h4>
+                            {listing.url && <ExternalLink className="w-4 h-4 flex-shrink-0" style={{ color: '#c9a94d' }} />}
                           </div>
-                        )}
 
-                        {/* Title */}
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <h4 className="body-regular font-semibold line-clamp-2 flex-1" style={{ color: '#333333' }}>
-                            {listing.title}
-                          </h4>
-                          <ExternalLink className="w-4 h-4 flex-shrink-0" style={{ color: '#c9a94d' }} />
-                        </div>
+                          {/* Price */}
+                          <div className="flex items-baseline gap-2 mb-2">
+                            <span className="text-2xl font-semibold" style={{ color: '#333333' }}>
+                              ${listing.price.toFixed(2)}
+                            </span>
+                          </div>
 
-                        {/* Price */}
-                        <div className="flex items-baseline gap-2 mb-2">
-                          <span className="text-2xl font-semibold" style={{ color: '#333333' }}>
-                            ${listing.price.toFixed(2)}
-                          </span>
-                        </div>
-
-                        {/* Condition */}
-                        <p className="body-small" style={{ color: '#666666' }}>
-                          Condition: {listing.condition || 'Not specified'}
-                        </p>
-                      </a>
-                    ))}
+                          {/* Condition */}
+                          <p className="body-small" style={{ color: '#666666' }}>
+                            Condition: {listing.condition || 'Not specified'}
+                          </p>
+                        </ListingCard>
+                      );
+                    })}
                   </div>
                 </div>
               );

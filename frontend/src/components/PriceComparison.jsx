@@ -40,7 +40,9 @@ export const PriceComparison = ({ charm }) => {
 
     // Group listings by platform and calculate averages
     charm.listings.forEach(listing => {
-      const platform = listing.platform;
+      // Capitalize platform name to match keys (ebay -> eBay, etsy -> Etsy, poshmark -> Poshmark)
+      const platformKey = listing.platform.charAt(0).toUpperCase() + listing.platform.slice(1);
+      const platform = platformKey === 'Ebay' ? 'eBay' : platformKey;
       if (prices[platform] && !prices[platform].isOfficial) {
         prices[platform].prices.push(listing.price);
         prices[platform].count++;
