@@ -134,58 +134,63 @@ class ScraperAPIClient:
             return []
     
     def scrape_ebay(self, charm_name: str) -> List[Dict]:
-        """Scrape eBay using ScraperAPI"""
+        """Scrape eBay using ScraperAPI's structured endpoint"""
         try:
-            search_query = charm_name.replace(' ', '+')
-            url = f"https://www.ebay.com/sch/i.html?_nkw={search_query}&_sop=12"
+            # Format search query for eBay (replace spaces with hyphens)
+            search_query = charm_name.lower().replace(' ', '-')
             
             logger.info(f"🛒 [EBAY] Scraping: {charm_name}")
-            html = self.fetch_page(url, render_js=True)
             
-            if not html:
+            # Use ScraperAPI's structured eBay endpoint
+            payload = {
+                'api_key': self.api_key,
+                'query': search_query
+            }
+            
+            response = requests.get(
+                'https://api.scraperapi.com/structured/ebay/search/v2',
+                params=payload,
+                timeout=60
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"❌ [EBAY] API returned status {response.status_code}")
                 return []
             
-            soup = BeautifulSoup(html, 'html.parser')
+            # Parse JSON response
+            json_data = response.json()
+            data = json_data.get('results', []) if isinstance(json_data, dict) else json_data
+            logger.info(f"🛒 [EBAY] Found {len(data)} items")
+            
             listings = []
-            
-            # Look for eBay item cards
-            items = soup.find_all('li', class_='s-item')
-            logger.info(f"🛒 [EBAY] Found {len(items)} items")
-            
-            for item in items[:20]:
+            for item in data[:20]:
                 try:
-                    # Skip if it's an ad
-                    title_elem = item.find('div', class_='s-item__title')
-                    if not title_elem:
+                    title = item.get('product_title', '').replace('Opens in a new window or tab', '').strip()
+                    if not title:
                         continue
                     
-                    title = title_elem.get_text(strip=True)
-                    if 'shop on ebay' in title.lower():
+                    # Handle price - can be single value or range
+                    item_price = item.get('item_price', {})
+                    price = None
+                    
+                    if isinstance(item_price, dict):
+                        if 'value' in item_price:
+                            price = float(item_price['value'])
+                        elif 'from' in item_price and isinstance(item_price['from'], dict):
+                            price = float(item_price['from'].get('value', 0))
+                    
+                    if not price or price <= 0:
                         continue
                     
-                    # Get price
-                    price_elem = item.find('span', class_='s-item__price')
-                    if not price_elem:
-                        continue
+                    # Get other fields
+                    image_url = item.get('image', '')
+                    condition = item.get('condition', 'Used')
+                    url_val = item.get('url', '')
                     
-                    price_text = price_elem.get_text(strip=True)
-                    price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
-                    if not price_match:
-                        continue
-                    
-                    price = float(price_match.group())
-                    
-                    # Get URL
-                    link = item.find('a', class_='s-item__link')
-                    url_val = link.get('href', '') if link else ''
-                    
-                    # Get condition
-                    cond_elem = item.find('span', class_='SECONDARY_INFO')
-                    condition = cond_elem.get_text(strip=True) if cond_elem else 'Used'
-                    
-                    # Get image
-                    img = item.find('img')
-                    image_url = img.get('src') if img else None
+                    # Extract seller info if available
+                    seller_info = 'eBay Seller'
+                    if item.get('seller_has_top_rated_plus'):
+                        seller_info = 'Top Rated Plus Seller'
                     
                     listings.append({
                         'platform': 'ebay',
@@ -194,7 +199,7 @@ class ScraperAPIClient:
                         'price': price,
                         'url': url_val,
                         'condition': condition,
-                        'seller': 'eBay Seller',
+                        'seller': seller_info,
                         'image_url': image_url
                     })
                     
