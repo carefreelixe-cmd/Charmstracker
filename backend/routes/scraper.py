@@ -8,7 +8,7 @@ from typing import Optional
 from datetime import datetime
 import logging
 
-from ..services.data_aggregator import DataAggregator
+from services.data_aggregator import DataAggregator
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/scraper", tags=["scraper"])
 
 def get_database():
     """Get database instance from server"""
-    from ..server import db
+    from server import db
     return db
 
 
