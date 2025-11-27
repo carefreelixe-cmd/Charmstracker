@@ -23,7 +23,7 @@ def get_database():
 
 def get_scheduler():
     """Get scheduler instance"""
-    from ..services.scheduler import _scheduler_instance
+    from services.scheduler import _scheduler_instance
     return _scheduler_instance
 
 
@@ -173,9 +173,9 @@ async def check_marketplace_availability(charm_name: str):
     Quick check without full update
     """
     try:
-        from ..scrapers.ebay_scraper import ebay_scraper
-        from ..scrapers.etsy_scraper import etsy_scraper
-        from ..scrapers.poshmark_scraper import poshmark_scraper
+        from scrapers.ebay_scraper import ebay_scraper
+        from scrapers.etsy_scraper import etsy_scraper
+        from scrapers.poshmark_scraper import poshmark_scraper
         
         # Quick search on each platform (limit 5)
         import asyncio
@@ -228,7 +228,7 @@ async def fetch_live_prices(charm_id: str):
     Updates the database with fresh marketplace data
     """
     try:
-        from ..scrapers.scraperapi_client import ScraperAPIClient
+        from scrapers.scraperapi_client import ScraperAPIClient
         
         # Get charm from database
         db = get_database()

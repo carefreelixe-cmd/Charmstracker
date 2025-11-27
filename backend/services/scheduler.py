@@ -179,7 +179,7 @@ class BackgroundScheduler:
     async def _run_james_avery_scrape(self):
         """Execute James Avery scraper with duplicate prevention"""
         try:
-            from ..scrapers.james_avery_scraper import JamesAveryScraper
+            from scrapers.james_avery_scraper import JamesAveryScraper
             
             scraper = JamesAveryScraper()
             
