@@ -235,7 +235,7 @@ class ScraperAPIClient:
             
             # Import AgentQL scraper
             try:
-                from .agentql_scraper import AgentQLMarketplaceScraper
+                from scrapers.agentql_scraper import AgentQLMarketplaceScraper
             except ImportError:
                 logger.warning("⚠️ AgentQL not available, skipping Poshmark")
                 return []
