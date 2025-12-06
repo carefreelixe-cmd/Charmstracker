@@ -95,6 +95,13 @@ class EtsyScraper:
             price_data = item.get('price', {})
             amount = price_data.get('amount', 0)
             divisor = price_data.get('divisor', 100)
+            currency_code = price_data.get('currency_code', 'USD')
+            
+            # Only accept USD prices
+            if currency_code != 'USD':
+                logger.debug(f"Skipping non-USD listing: {currency_code} {amount/divisor}")
+                return None
+            
             price = float(amount) / float(divisor)
             
             if price <= 0:
