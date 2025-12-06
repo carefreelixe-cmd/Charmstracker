@@ -187,13 +187,20 @@ class EbayScraper:
             
             for item in items:
                 try:
+                    # Extract URL - try viewItemURL first, then build from itemId
+                    item_url = item.get('viewItemURL', [''])[0]
+                    if not item_url:
+                        item_id = item.get('itemId', [''])[0]
+                        if item_id:
+                            item_url = f"https://www.ebay.com/itm/{item_id}"
+                    
                     listing = {
                         'platform': 'eBay',
                         'title': item.get('title', [''])[0],
                         'price': float(item.get('sellingStatus', [{}])[0]
                                      .get('currentPrice', [{}])[0]
                                      .get('__value__', 0)),
-                        'url': item.get('viewItemURL', [''])[0],
+                        'url': item_url,
                         'condition': item.get('condition', [{}])[0]
                                          .get('conditionDisplayName', ['Used'])[0],
                         'image_url': item.get('galleryURL', [''])[0],
