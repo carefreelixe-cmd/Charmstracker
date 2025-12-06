@@ -385,7 +385,7 @@ export const Browse = () => {
             ))}
           </div>
         ) : (
-          <div className="flex flex-col gap-4 mb-12">
+          <div className="flex flex-col gap-0 mb-12">
             {filteredCharms.map((charm) => (
               <button
                 key={charm.id}

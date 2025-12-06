@@ -30,7 +30,11 @@ export const CharmDetail = () => {
   const [scraperRunning, setScraperRunning] = useState(false);
 
   useEffect(() => {
-    fetchCharmDetail();
+    const initCharm = async () => {
+      await fetchCharmDetail();
+    };
+    
+    initCharm();
     
     // Auto-refresh every 30 seconds
     const cleanup = realtimeUtils.startAutoRefresh(
@@ -57,6 +61,24 @@ export const CharmDetail = () => {
       setLoading(true);
       const data = await charmAPI.getCharmById(id);
       setCharm(data);
+      
+      // Auto-fetch live prices if no listings exist
+      if (!data.listings || data.listings.length === 0) {
+        console.log('⚠️ No listings found, auto-fetching live prices...');
+        setLoading(false); // Stop main loading
+        setUpdating(true); // Show fetching state
+        try {
+          const result = await charmAPI.fetchLivePrices(id);
+          console.log('✅ Auto-fetched live prices:', result);
+          // Refresh to get new data
+          const updatedData = await charmAPI.getCharmById(id);
+          setCharm(updatedData);
+        } catch (error) {
+          console.error('❌ Error auto-fetching prices:', error);
+        }
+        setUpdating(false);
+        return;
+      }
 
       // 🔍 DETAILED CONSOLE LOGGING FOR MARKETPLACE DATA
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -251,6 +273,23 @@ export const CharmDetail = () => {
             <div className="h-96 bg-gray-200 mb-8" />
             <div className="h-8 bg-gray-200 w-1/3 mb-4" />
             <div className="h-4 bg-gray-200 w-2/3" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (updating && !charm) {
+    return (
+      <div className="min-h-screen pt-24 pb-16" style={{ background: '#f3f3f3' }}>
+        <div className="max-w-[1400px] mx-auto px-6 lg:px-12 text-center">
+          <div className="bg-white p-12" style={{ border: '1px solid #bcbcbc', borderRadius: '0px' }}>
+            <div className="animate-spin h-12 w-12 border-4 border-gray-300 border-t-[#c9a94d] rounded-full mx-auto mb-6"></div>
+            <h2 className="heading-2 mb-4">Fetching Live Prices...</h2>
+            <p className="body-regular" style={{ color: '#666666' }}>
+              Scraping Etsy, eBay, and Poshmark for current listings.<br />
+              This may take 30-45 seconds.
+            </p>
           </div>
         </div>
       </div>
@@ -718,9 +757,9 @@ export const CharmDetail = () => {
             </div>
             <div className="text-center py-8">
               <AlertCircle className="w-12 h-12 mx-auto mb-4" style={{ color: '#c9a94d' }} />
-              <h3 className="heading-3 mb-2">No Active Listings Found</h3>
+              <h3 className="heading-3 mb-2">No Listings Available</h3>
               <p className="body-regular mb-4" style={{ color: '#666666' }}>
-                We couldn't find any active marketplace listings for this charm at the moment.
+                Click "Fetch Live Prices" above to get current marketplace listings.
               </p>
               {charm.james_avery_price && (
                 <div className="bg-gray-50 p-6 max-w-md mx-auto" style={{ borderRadius: '0px' }}>
