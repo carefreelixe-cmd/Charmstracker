@@ -21,12 +21,29 @@ export const Browse = () => {
     totalPages: 0
   });
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 
   useEffect(() => {
     fetchCharms();
-  }, [filters, pagination.page]);
+  }, [filters, pagination.page, searchTerm]);
+
+  // Debounce search input (500ms delay)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== searchTerm) {
+        setSearchTerm(searchInput);
+        setPagination(prev => ({ ...prev, page: 1 })); // Reset to page 1 on search
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const handleSearchChange = (value) => {
+    setSearchInput(value);
+  };
 
   const fetchCharms = async () => {
     try {
@@ -36,7 +53,8 @@ export const Browse = () => {
         page: pagination.page,
         limit: pagination.limit,
         min_price: filters.minPrice || undefined,
-        max_price: filters.maxPrice || undefined
+        max_price: filters.maxPrice || undefined,
+        search: searchTerm || undefined
       };
       
       // Remove empty filters
@@ -73,14 +91,12 @@ export const Browse = () => {
       minPrice: '',
       maxPrice: ''
     });
+    setSearchTerm('');
+    setSearchInput('');
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
-  const filteredCharms = charms.filter(charm =>
-    charm.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const hasActiveFilters = filters.material || filters.status || filters.minPrice || filters.maxPrice;
+  const hasActiveFilters = filters.material || filters.status || filters.minPrice || filters.maxPrice || searchTerm;
 
   return (
     <div className="min-h-screen pt-24 pb-16" style={{ background: '#f3f3f3' }}>
@@ -102,8 +118,8 @@ export const Browse = () => {
               <input
                 type="text"
                 placeholder="Search charms by name..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchInput}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="w-full h-14 pl-12 pr-4 body-regular"
                 style={{
                   background: '#ffffff',
@@ -315,7 +331,7 @@ export const Browse = () => {
               </div>
             ))}
           </div>
-        ) : filteredCharms.length === 0 ? (
+        ) : charms.length === 0 ? (
           <div className="text-center py-16">
             <p className="heading-2 mb-4">No charms found</p>
             <p className="body-regular" style={{ color: '#666666' }}>
@@ -324,7 +340,7 @@ export const Browse = () => {
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
-            {filteredCharms.map((charm) => (
+            {charms.map((charm) => (
               <button
                 key={charm.id}
                 onClick={() => navigate(`/charm/${charm.id}`)}
@@ -386,7 +402,7 @@ export const Browse = () => {
           </div>
         ) : (
           <div className="flex flex-col gap-0 mb-12">
-            {filteredCharms.map((charm) => (
+            {charms.map((charm) => (
               <button
                 key={charm.id}
                 onClick={() => navigate(`/charm/${charm.id}`)}

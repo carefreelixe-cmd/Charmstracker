@@ -29,12 +29,19 @@ async def get_all_charms(
     max_price: Optional[float] = Query(None, ge=0),
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
+    search: Optional[str] = Query(None, min_length=1),
 ):
-    """Get all charms with filtering and sorting"""
+    """Get all charms with filtering, sorting, and search"""
     try:
         db = get_database()
         # Build filter query
         filter_query = {}
+        
+        # Add text search if provided
+        if search:
+            # Case-insensitive regex search on name field
+            filter_query["name"] = {"$regex": search, "$options": "i"}
+        
         if material:
             filter_query["material"] = material
         if status:
