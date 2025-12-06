@@ -322,8 +322,8 @@ export const CharmDetail = () => {
   }
 
   return (
-    <div className="min-h-screen pt-24 pb-16" style={{ background: '#f3f3f3' }}>
-      <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
+    <div className="min-h-screen pt-20 sm:pt-24 pb-8 sm:pb-16" style={{ background: '#f3f3f3' }}>
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-12">
         {/* Back Button */}
         <button
           onClick={() => navigate(-1)}
@@ -335,43 +335,44 @@ export const CharmDetail = () => {
         </button>
 
         {/* Update Status Bar */}
-        <div className="mb-6 p-4 bg-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0" style={{ border: '1px solid #bcbcbc' }}>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div className="mb-6 p-3 sm:p-4 bg-white flex flex-col gap-4" style={{ border: '1px solid #bcbcbc' }}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5" style={{ color: '#666666' }} />
-              <span className="body-small" style={{ color: '#666666' }}>
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" style={{ color: '#666666' }} />
+              <span className="body-small text-xs sm:text-sm" style={{ color: '#666666' }}>
                 Last updated: {realtimeUtils.timeSinceUpdate(lastUpdateTime)}
               </span>
             </div>
             {needsUpdate && (
-              <span className="flex items-center gap-1 body-small" style={{ color: '#c9a94d' }}>
-                <AlertCircle className="w-4 h-4" />
+              <span className="flex items-center gap-1 body-small text-xs sm:text-sm" style={{ color: '#c9a94d' }}>
+                <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                 Data may be outdated
               </span>
             )}
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
             <button
               onClick={handleForceUpdate}
               disabled={updating}
-              className="flex items-center gap-2 px-4 py-2 transition-smooth flex-1 sm:flex-initial"
+              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 transition-smooth w-full sm:w-auto sm:flex-1"
               style={{
                 background: updating ? '#f3f3f3' : '#c9a94d',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '0px',
                 opacity: updating ? 0.6 : 1,
-                cursor: updating ? 'wait' : 'pointer'
+                cursor: updating ? 'wait' : 'pointer',
+                fontSize: '14px'
               }}
               title="Refresh marketplace data for this charm"
             >
-              <RefreshCw className={`w-4 h-4 ${updating ? 'animate-spin' : ''}`} />
-              {updating ? 'Updating...' : 'Refresh Charm'}
+              <RefreshCw className={`w-4 h-4 flex-shrink-0 ${updating ? 'animate-spin' : ''}`} />
+              <span className="whitespace-nowrap">{updating ? 'Updating...' : 'Refresh Charm'}</span>
             </button>
             <button
               onClick={handleFetchLivePrices}
               disabled={updating}
-              className="flex items-center gap-2 px-4 py-2 transition-smooth flex-1 sm:flex-initial"
+              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 transition-smooth w-full sm:w-auto sm:flex-1"
               style={{
                 background: updating ? '#f3f3f3' : '#2d8659',
                 color: '#ffffff',
@@ -379,76 +380,54 @@ export const CharmDetail = () => {
                 borderRadius: '0px',
                 opacity: updating ? 0.6 : 1,
                 cursor: updating ? 'wait' : 'pointer',
-                fontWeight: '600'
+                fontWeight: '600',
+                fontSize: '14px'
               }}
               title="Fetch live prices from Etsy, eBay, and Poshmark using AI"
             >
               {updating ? (
                 <>
-                  <div className="animate-spin h-4 w-4 border-2 border-gray-600 border-t-transparent rounded-full"></div>
-                  <span>Scraping Etsy, eBay, Poshmark...</span>
+                  <div className="animate-spin h-4 w-4 border-2 border-gray-600 border-t-transparent rounded-full flex-shrink-0"></div>
+                  <span className="text-xs sm:text-sm">Scraping...</span>
                 </>
               ) : (
                 <>
-                  <RefreshCw className="w-4 h-4" />
-                  🔍 Fetch Live Prices
+                  <RefreshCw className="w-4 h-4 flex-shrink-0" />
+                  <span className="whitespace-nowrap">🔍 Fetch Live Prices</span>
                 </>
               )}
             </button>
             <button
               onClick={handleRefreshAllData}
               disabled={scraperRunning}
-              className="flex items-center gap-2 px-4 py-2 transition-smooth flex-1 sm:flex-initial"
+              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 transition-smooth w-full sm:w-auto sm:flex-1"
               style={{
                 background: scraperRunning ? '#f3f3f3' : 'transparent',
                 color: scraperRunning ? '#999999' : '#c9a94d',
                 border: '1px solid #c9a94d',
                 borderRadius: '0px',
                 opacity: scraperRunning ? 0.6 : 1,
-                cursor: scraperRunning ? 'wait' : 'pointer'
+                cursor: scraperRunning ? 'wait' : 'pointer',
+                fontSize: '14px'
               }}
               title="Update all charms from marketplace sources"
             >
-              <RefreshCw className={`w-4 h-4 ${scraperRunning ? 'animate-spin' : ''}`} />
-              {scraperRunning ? 'Updating...' : 'Refresh All Data'}
+              <RefreshCw className={`w-4 h-4 flex-shrink-0 ${scraperRunning ? 'animate-spin' : ''}`} />
+              <span className="whitespace-nowrap">{scraperRunning ? 'Updating...' : 'Refresh All Data'}</span>
             </button>
           </div>
         </div>
 
         {/* Auto-Update Info */}
         <div className="mb-6 p-3 flex items-center gap-2" style={{ background: '#f6f5e8', border: '1px solid #c9a94d' }}>
-          <CheckCircle className="w-5 h-5" style={{ color: '#c9a94d' }} />
-          <span className="body-small" style={{ color: '#666666' }}>
+          <CheckCircle className="w-5 h-5 flex-shrink-0" style={{ color: '#c9a94d' }} />
+          <span className="body-small text-xs sm:text-sm" style={{ color: '#666666' }}>
             <strong>Auto-Update:</strong> Data automatically refreshes from marketplace sources. Use "Fetch Live Prices" to get real-time data from Etsy, eBay, and Poshmark.
           </span>
         </div>
 
-        {/* Marketplace Availability */}
-        {marketplaceStatus && (
-          <div className="mb-6 p-4 bg-white" style={{ border: '1px solid #bcbcbc' }}>
-            <h3 className="heading-3 mb-3">Marketplace Availability</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {Object.entries(marketplaceStatus.availability).map(([platform, status]) => (
-                <div key={platform} className="flex items-center gap-2">
-                  {status.available ? (
-                    <CheckCircle className="w-5 h-5" style={{ color: '#2d8659' }} />
-                  ) : (
-                    <AlertCircle className="w-5 h-5" style={{ color: '#ba3e2b' }} />
-                  )}
-                  <div>
-                    <p className="body-small font-semibold capitalize">{platform}</p>
-                    <p className="text-xs" style={{ color: '#666666' }}>
-                      {status.listing_count} listings
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12 mb-8 sm:mb-12 lg:mb-16">
           {/* Image Gallery/Carousel */}
           <div>
             {charm.images.length > 1 ? (
@@ -608,35 +587,35 @@ export const CharmDetail = () => {
             </p>
 
             {/* Price Changes */}
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="p-4" style={{ background: '#ffffff', borderRadius: '0px' }}>
-                <p className="body-small mb-1" style={{ color: '#666666' }}>
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8">
+              <div className="p-2 sm:p-4" style={{ background: '#ffffff', borderRadius: '0px' }}>
+                <p className="body-small text-xs sm:text-sm mb-1" style={{ color: '#666666' }}>
                   7 Days
                 </p>
                 <p
-                  className="text-lg font-semibold"
+                  className="text-sm sm:text-lg font-semibold"
                   style={{ color: charm.price_change_7d >= 0 ? '#2d8659' : '#ba3e2b' }}
                 >
                   {charm.price_change_7d >= 0 ? '+' : ''}{charm.price_change_7d}%
                 </p>
               </div>
-              <div className="p-4" style={{ background: '#ffffff', borderRadius: '0px' }}>
-                <p className="body-small mb-1" style={{ color: '#666666' }}>
+              <div className="p-2 sm:p-4" style={{ background: '#ffffff', borderRadius: '0px' }}>
+                <p className="body-small text-xs sm:text-sm mb-1" style={{ color: '#666666' }}>
                   30 Days
                 </p>
                 <p
-                  className="text-lg font-semibold"
+                  className="text-sm sm:text-lg font-semibold"
                   style={{ color: charm.price_change_30d >= 0 ? '#2d8659' : '#ba3e2b' }}
                 >
                   {charm.price_change_30d >= 0 ? '+' : ''}{charm.price_change_30d}%
                 </p>
               </div>
-              <div className="p-4" style={{ background: '#ffffff', borderRadius: '0px' }}>
-                <p className="body-small mb-1" style={{ color: '#666666' }}>
+              <div className="p-2 sm:p-4" style={{ background: '#ffffff', borderRadius: '0px' }}>
+                <p className="body-small text-xs sm:text-sm mb-1" style={{ color: '#666666' }}>
                   90 Days
                 </p>
                 <p
-                  className="text-lg font-semibold"
+                  className="text-sm sm:text-lg font-semibold"
                   style={{ color: charm.price_change_90d >= 0 ? '#2d8659' : '#ba3e2b' }}
                 >
                   {charm.price_change_90d >= 0 ? '+' : ''}{charm.price_change_90d}%
@@ -647,15 +626,15 @@ export const CharmDetail = () => {
         </div>
 
         {/* Price Comparison Chart */}
-        <div className="mb-16">
+        <div className="mb-8 sm:mb-12 lg:mb-16">
           <PriceComparison charm={charm} />
         </div>
 
         {/* Price History Chart */}
         {charm && charm.price_history && charm.price_history.length > 0 && (
-          <div className="mb-16 bg-white p-8" style={{ border: '2px solid #c9a94d', borderRadius: '0px' }}>
-            <h2 className="heading-2 mb-6">Price History (Last 30 Days)</h2>
-            <div className="w-full h-[400px] bg-white rounded-lg shadow-sm p-4">
+          <div className="mb-8 sm:mb-12 lg:mb-16 bg-white p-4 sm:p-6 lg:p-8" style={{ border: '2px solid #c9a94d', borderRadius: '0px' }}>
+            <h2 className="heading-2 mb-4 sm:mb-6">Price History (Last 30 Days)</h2>
+            <div className="w-full h-[300px] sm:h-[400px] bg-white rounded-lg shadow-sm p-2 sm:p-4">
               <PriceHistoryChart priceHistory={chartData} />
             </div>
             <p className="text-center mt-4 body-small" style={{ color: '#999999' }}>
@@ -666,10 +645,10 @@ export const CharmDetail = () => {
 
         {/* Active Listings */}
         {charm.listings && charm.listings.length > 0 ? (
-          <div className="mb-16">
-            <div className="flex items-center justify-between mb-6">
+          <div className="mb-8 sm:mb-12 lg:mb-16">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 mb-4 sm:mb-6">
               <h2 className="heading-2">Active Listings ({charm.listings.length})</h2>
-              <span className="body-small" style={{ color: '#666666' }}>
+              <span className="body-small text-xs sm:text-sm" style={{ color: '#666666' }}>
                 Updated {realtimeUtils.timeSinceUpdate(charm.last_updated)}
               </span>
             </div>
@@ -690,7 +669,7 @@ export const CharmDetail = () => {
                       ({platformListings.length} listings)
                     </span>
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {platformListings.map((listing, index) => {
                       const ListingCard = listing.url ? 'a' : 'div';
                       const linkProps = listing.url ? {
@@ -748,10 +727,10 @@ export const CharmDetail = () => {
             })}
           </div>
         ) : (
-          <div className="mb-16 bg-white p-8" style={{ border: '1px solid #bcbcbc', borderRadius: '0px' }}>
-            <div className="flex items-center justify-between mb-6">
+          <div className="mb-8 sm:mb-12 lg:mb-16 bg-white p-4 sm:p-6 lg:p-8" style={{ border: '1px solid #bcbcbc', borderRadius: '0px' }}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 mb-4 sm:mb-6">
               <h2 className="heading-2">Active Listings</h2>
-              <span className="body-small" style={{ color: '#666666' }}>
+              <span className="body-small text-xs sm:text-sm" style={{ color: '#666666' }}>
                 Updated {realtimeUtils.timeSinceUpdate(charm.last_updated)}
               </span>
             </div>
@@ -799,8 +778,8 @@ export const CharmDetail = () => {
         {/* Related Charms */}
         {relatedCharms.length > 0 && (
           <div>
-            <h2 className="heading-2 mb-6">Related Charms</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <h2 className="heading-2 mb-4 sm:mb-6">Related Charms</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {relatedCharms.map((relatedCharm) => (
                 <button
                   key={relatedCharm.id}
