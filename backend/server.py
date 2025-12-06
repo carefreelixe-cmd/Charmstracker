@@ -109,19 +109,20 @@ app.include_router(market_router)
 app.include_router(scraper_router)
 app.include_router(api_router)
 
+# CORS Configuration - MUST be after routers but before any routes
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:8000",
         "https://charmstracker.com",
         "https://www.charmstracker.com",
-        "https://charms.freelixe.com",
-        "*"  # Allow all origins in development
+        "https://charms.freelixe.com"
     ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Configure logging
