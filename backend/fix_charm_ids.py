@@ -58,18 +58,21 @@ async def fix_charm_ids():
                 print(f"  ⚠️  SKIP: Clean ID already exists")
                 continue
             
-            # Update the document
-            await db.charms.update_one(
-                {'_id': charm['_id']},
-                {'$set': {'_id': clean_id}}
-            )
+            # MongoDB doesn't allow updating _id, so we need to:
+            # 1. Create new document with clean ID
+            # 2. Delete old document
             
-            # Also update the id field if it exists
-            if 'id' in charm:
-                await db.charms.update_one(
-                    {'_id': clean_id},
-                    {'$set': {'id': clean_id}}
-                )
+            # Create new document with clean _id
+            new_charm = charm.copy()
+            new_charm['_id'] = clean_id
+            if 'id' in new_charm:
+                new_charm['id'] = clean_id
+            
+            # Insert new document
+            await db.charms.insert_one(new_charm)
+            
+            # Delete old document
+            await db.charms.delete_one({'_id': current_id})
             
             print(f"  ✅ Fixed")
             fixed_count += 1
