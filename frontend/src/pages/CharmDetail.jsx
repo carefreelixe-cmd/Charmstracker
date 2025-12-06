@@ -62,9 +62,16 @@ export const CharmDetail = () => {
       const data = await charmAPI.getCharmById(id);
       setCharm(data);
       
-      // Auto-fetch live prices if no listings exist
-      if (!data.listings || data.listings.length === 0) {
-        console.log('⚠️ No listings found, auto-fetching live prices...');
+      // Check if data needs updating
+      const needsUpdate = !data.listings || data.listings.length === 0 || 
+        (data.last_updated && isDataOld(data.last_updated, 6)); // 6 hours
+      
+      // Auto-fetch live prices if needed
+      if (needsUpdate) {
+        const reason = !data.listings || data.listings.length === 0 
+          ? 'No listings found' 
+          : 'Data is older than 6 hours';
+        console.log(`⚠️ ${reason}, auto-fetching live prices...`);
         setLoading(false); // Stop main loading
         setUpdating(true); // Show fetching state
         try {
@@ -229,6 +236,17 @@ export const CharmDetail = () => {
       watchlistUtils.addToWatchlist(charm.id);
       setIsInWatchlist(true);
     }
+  };
+
+  // Helper function to check if data is old
+  const isDataOld = (lastUpdated, hours = 6) => {
+    if (!lastUpdated) return true;
+    
+    const lastUpdate = new Date(lastUpdated);
+    const now = new Date();
+    const diffHours = (now - lastUpdate) / (1000 * 60 * 60);
+    
+    return diffHours >= hours;
   };
 
   // Auto-refresh data every 5 minutes
