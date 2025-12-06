@@ -281,7 +281,7 @@ export const Browse = () => {
         {/* Results Count */}
         <div className="mb-6 flex items-center justify-between">
           <p className="body-regular" style={{ color: '#666666' }}>
-            Showing {filteredCharms.length} of {pagination.total} charms
+            Showing {charms.length} of {pagination.total} charms
           </p>
           
           {/* View Mode Toggle */}
