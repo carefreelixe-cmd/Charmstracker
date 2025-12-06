@@ -12,7 +12,7 @@ load_dotenv()
 
 async def fix_status():
     # Connect to MongoDB
-    mongo_uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
+    mongo_uri = os.getenv('MONGO_URL') or os.getenv('MONGO_URI', 'mongodb://localhost:27017')
     client = AsyncIOMotorClient(mongo_uri)
     db = client.charmstracker
     
