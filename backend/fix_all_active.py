@@ -16,39 +16,35 @@ async def fix_status():
     client = AsyncIOMotorClient(mongo_uri)
     db = client.charmstracker
     
-    print("Marking all charms as Active...")
+    print("Adding status and is_retired fields to all charms...")
     print("="*50)
     
-    # Get all charms
-    charms = await db.charms.find({}).to_list(length=None)
+    # Update ALL charms to add status and is_retired fields
+    result = await db.charms.update_many(
+        {},  # Match all documents
+        {"$set": {
+            "status": "Active",
+            "is_retired": False,
+            "material": "Silver",  # Default material
+            "popularity": 50,  # Default popularity
+            "price_change_7d": 0.0,
+            "price_change_30d": 0.0,
+            "price_change_90d": 0.0
+        }}
+    )
     
-    fixed_count = 0
+    print(f"\n✅ Updated {result.modified_count} charm(s)")
+    print(f"✅ All charms now have:")
+    print(f"   - status: Active")
+    print(f"   - is_retired: False")
+    print(f"   - material: Silver")
+    print("="*50)
     
+    # Show updated charms
+    charms = await db.charms.find({}).limit(5).to_list(length=5)
+    print("\nSample charms:")
     for charm in charms:
-        status = charm.get('status', '')
-        charm_id = charm.get('id', 'unknown')
-        charm_name = charm.get('name', 'unknown')
-        
-        print(f"\nCharm: {charm_name}")
-        print(f"  Current status: '{status}'")
-        
-        # Mark all as Active
-        if status != "Active":
-            print(f"  🔄 Updating to Active")
-            
-            # Update the charm to Active and set is_retired to False
-            await db.charms.update_one(
-                {"id": charm_id},
-                {"$set": {"status": "Active", "is_retired": False}}
-            )
-            fixed_count += 1
-        else:
-            print(f"  ✅ Already Active")
-    
-    print(f"\n{'='*50}")
-    print(f"✅ Updated {fixed_count} charm(s) to Active")
-    print(f"✅ Total charms: {len(charms)}")
-    print(f"{'='*50}")
+        print(f"  {charm.get('name')}: status=\"{charm.get('status')}\" is_retired={charm.get('is_retired')}")
     
     client.close()
 
