@@ -8,9 +8,12 @@ load_dotenv()
 async def fix_all():
     # Connect to MongoDB
     mongo_uri = os.getenv('MONGO_URL') or os.getenv('MONGO_URI', 'mongodb://localhost:27017')
-    client = AsyncIOMotorClient(mongo_uri)
-    db = client.charmstracker
+    db_name = os.getenv('DB_NAME', 'charmstracker')
     
+    client = AsyncIOMotorClient(mongo_uri)
+    db = client[db_name]
+    
+    print(f"Connecting to database: {db_name}")
     print("Updating all charms to Active status...")
     print("="*60)
     
