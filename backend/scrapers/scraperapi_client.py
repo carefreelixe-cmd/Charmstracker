@@ -53,62 +53,93 @@ class ScraperAPIClient:
             return None
     
     def scrape_etsy(self, charm_name: str) -> List[Dict]:
-        """Scrape Etsy marketplace using AgentQL (better for dynamic content and currency detection)"""
+        """Scrape Etsy marketplace using ScraperAPI"""
         try:
-            logger.info(f"🎨 [ETSY-AGENTQL] Scraping: {charm_name}")
+            # Use market page format for better scraping
+            formatted_term = charm_name.lower().replace(' ', '_')
+            url = f"https://www.etsy.com/market/{formatted_term}"
             
-            # Import AgentQL scraper
-            try:
-                from scrapers.agentql_scraper import AgentQLMarketplaceScraper
-            except ImportError as ie:
-                logger.error(f"⚠️ AgentQL import failed: {ie}")
+            logger.info(f"🎨 [ETSY] Scraping: {charm_name}")
+            html = self.fetch_page(url, render_js=True)
+            
+            if not html:
                 return []
             
-            # Use AgentQL for Etsy (handles dynamic content and currency detection)
-            try:
-                agentql_scraper = AgentQLMarketplaceScraper(headless=True)
-                etsy_results = agentql_scraper.scrape_etsy(charm_name)
-                logger.info(f"✅ [ETSY-AGENTQL] Got {len(etsy_results)} raw results")
-            except Exception as scrape_err:
-                logger.error(f"❌ [ETSY-AGENTQL] Scraping failed: {scrape_err}")
-                import traceback
-                traceback.print_exc()
-                return []
-            
-            # Convert to our standardized format
+            soup = BeautifulSoup(html, 'html.parser')
             listings = []
-            for item in etsy_results:
+            
+            # Find listing cards with multiple selectors
+            listing_cards = soup.find_all('div', class_='v2-listing-card')
+            if not listing_cards:
+                listing_cards = soup.find_all('div', attrs={'data-listing-id': True})
+            
+            logger.info(f"🎨 [ETSY] Found {len(listing_cards)} listing cards")
+            
+            for card in listing_cards[:15]:
                 try:
-                    price = float(item.get('price', 0))
-                    currency = item.get('currency', 'USD')
+                    # Find title - multiple approaches
+                    title_elem = card.find('h2', class_='wt-text-caption') or \
+                                card.find('h3', class_='v2-listing-card__title') or \
+                                card.find('h2', id=lambda x: x and 'listing-title' in x)
+                    title = title_elem.text.strip() if title_elem else None
                     
-                    # Validate price exists
-                    if price <= 0:
-                        logger.debug(f"⚠️ Skipping Etsy listing with invalid price: {price}")
+                    # Find price - look for currency-value span
+                    price_elem = card.find('span', class_='currency-value')
+                    price = None
+                    if price_elem:
+                        price_text = price_elem.text.strip()
+                        # Remove all non-numeric except decimal point
+                        clean_price = re.sub(r'[^\d.]', '', price_text)
+                        if clean_price:
+                            price = float(clean_price)
+                    
+                    # Fallback: look in price paragraph
+                    if not price:
+                        price_p = card.find('p', class_='wt-text-title-01')
+                        if price_p:
+                            # Match price pattern like $19.99 or 19.99
+                            price_match = re.search(r'\$?\s*([\d]+[.,]?\d*)', price_p.text.replace(',', ''))
+                            if price_match:
+                                price = float(price_match.group(1))
+                    
+                    # Validate price is reasonable (between $1 and $5000 for charms)
+                    if price and (price < 1 or price > 5000):
+                        logger.debug(f"⚠️ Skipping listing with unreasonable price: ${price}")
                         continue
                     
-                    listings.append({
-                        'platform': 'etsy',
-                        'marketplace': 'Etsy',
-                        'title': item.get('title', '')[:200],
-                        'price': price,
-                        'currency': currency,
-                        'url': item.get('url', ''),
-                        'condition': item.get('condition', 'New'),
-                        'seller': 'Etsy Seller',
-                        'image_url': item.get('image_url', '')
-                    })
+                    # Find URL
+                    link_elem = card.find('a', class_='listing-link')
+                    url_val = link_elem.get('href') if link_elem else None
+                    if url_val and not url_val.startswith('http'):
+                        url_val = 'https://www.etsy.com' + url_val
+                    
+                    # Find image
+                    img_elem = card.find('img', {'data-listing-card-listing-image': True})
+                    if not img_elem:
+                        img_elem = card.find('img', class_='wt-image')
+                    image_url = img_elem.get('src') if img_elem else None
+                    
+                    if title and price and url_val:
+                        listings.append({
+                            'platform': 'etsy',
+                            'marketplace': 'Etsy',
+                            'title': title[:200],
+                            'price': price,
+                            'url': url_val,
+                            'condition': 'New',
+                            'seller': 'Etsy Seller',
+                            'image_url': image_url
+                        })
+                    
                 except Exception as e:
                     logger.debug(f"⚠️ Parse error: {e}")
                     continue
             
-            logger.info(f"✅ [ETSY] Parsed {len(listings)} listings via AgentQL")
+            logger.info(f"✅ [ETSY] Parsed {len(listings)} listings")
             return listings
             
         except Exception as e:
             logger.error(f"❌ [ETSY] Error: {e}")
-            import traceback
-            traceback.print_exc()
             return []
     
     def scrape_ebay(self, charm_name: str) -> List[Dict]:
@@ -247,43 +278,35 @@ class ScraperAPIClient:
             return []
     
     def scrape_all(self, charm_name: str) -> List[Dict]:
-        """Scrape all marketplaces for a charm sequentially (AgentQL requires sequential execution)"""
+        """Scrape all marketplaces for a charm in parallel for faster results"""
         logger.info(f"\n{'='*60}")
         logger.info(f"🔍 Scraping all marketplaces for: {charm_name}")
         logger.info(f"{'='*60}")
         
         all_listings = []
-        results_map = {'etsy': [], 'ebay': [], 'poshmark': []}
         
-        # Scrape Etsy first (AgentQL - must run sequentially)
-        try:
-            logger.info("🎨 Starting Etsy scraping...")
-            etsy_listings = self.scrape_etsy(charm_name)
-            results_map['etsy'] = etsy_listings
-            all_listings.extend(etsy_listings)
-            logger.info(f"✅ Etsy: {len(etsy_listings)} listings completed")
-        except Exception as e:
-            logger.error(f"❌ Error scraping Etsy: {e}")
+        # Use ThreadPoolExecutor to scrape all platforms in parallel
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         
-        # Scrape eBay (ScraperAPI - can run independently)
-        try:
-            logger.info("🛒 Starting eBay scraping...")
-            ebay_listings = self.scrape_ebay(charm_name)
-            results_map['ebay'] = ebay_listings
-            all_listings.extend(ebay_listings)
-            logger.info(f"✅ eBay: {len(ebay_listings)} listings completed")
-        except Exception as e:
-            logger.error(f"❌ Error scraping eBay: {e}")
-        
-        # Scrape Poshmark (AgentQL - must run sequentially)
-        try:
-            logger.info("👗 Starting Poshmark scraping...")
-            poshmark_listings = self.scrape_poshmark(charm_name)
-            results_map['poshmark'] = poshmark_listings
-            all_listings.extend(poshmark_listings)
-            logger.info(f"✅ Poshmark: {len(poshmark_listings)} listings completed")
-        except Exception as e:
-            logger.error(f"❌ Error scraping Poshmark: {e}")
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            # Submit all scraping tasks
+            future_to_platform = {
+                executor.submit(self.scrape_etsy, charm_name): 'etsy',
+                executor.submit(self.scrape_ebay, charm_name): 'ebay',
+                executor.submit(self.scrape_poshmark, charm_name): 'poshmark'
+            }
+            
+            # Collect results as they complete
+            results_map = {'etsy': [], 'ebay': [], 'poshmark': []}
+            for future in as_completed(future_to_platform):
+                platform = future_to_platform[future]
+                try:
+                    listings = future.result()
+                    results_map[platform] = listings
+                    all_listings.extend(listings)
+                    logger.info(f"✅ {platform.upper()}: {len(listings)} listings completed")
+                except Exception as e:
+                    logger.error(f"❌ Error scraping {platform}: {e}")
         
         logger.info(f"\n{'='*60}")
         logger.info(f"📊 TOTAL: {len(all_listings)} listings found")
