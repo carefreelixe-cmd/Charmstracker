@@ -247,35 +247,43 @@ class ScraperAPIClient:
             return []
     
     def scrape_all(self, charm_name: str) -> List[Dict]:
-        """Scrape all marketplaces for a charm in parallel for faster results"""
+        """Scrape all marketplaces for a charm sequentially (AgentQL requires sequential execution)"""
         logger.info(f"\n{'='*60}")
         logger.info(f"🔍 Scraping all marketplaces for: {charm_name}")
         logger.info(f"{'='*60}")
         
         all_listings = []
+        results_map = {'etsy': [], 'ebay': [], 'poshmark': []}
         
-        # Use ThreadPoolExecutor to scrape all platforms in parallel
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        # Scrape Etsy first (AgentQL - must run sequentially)
+        try:
+            logger.info("🎨 Starting Etsy scraping...")
+            etsy_listings = self.scrape_etsy(charm_name)
+            results_map['etsy'] = etsy_listings
+            all_listings.extend(etsy_listings)
+            logger.info(f"✅ Etsy: {len(etsy_listings)} listings completed")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Etsy: {e}")
         
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            # Submit all scraping tasks
-            future_to_platform = {
-                executor.submit(self.scrape_etsy, charm_name): 'etsy',
-                executor.submit(self.scrape_ebay, charm_name): 'ebay',
-                executor.submit(self.scrape_poshmark, charm_name): 'poshmark'
-            }
-            
-            # Collect results as they complete
-            results_map = {'etsy': [], 'ebay': [], 'poshmark': []}
-            for future in as_completed(future_to_platform):
-                platform = future_to_platform[future]
-                try:
-                    listings = future.result()
-                    results_map[platform] = listings
-                    all_listings.extend(listings)
-                    logger.info(f"✅ {platform.upper()}: {len(listings)} listings completed")
-                except Exception as e:
-                    logger.error(f"❌ Error scraping {platform}: {e}")
+        # Scrape eBay (ScraperAPI - can run independently)
+        try:
+            logger.info("🛒 Starting eBay scraping...")
+            ebay_listings = self.scrape_ebay(charm_name)
+            results_map['ebay'] = ebay_listings
+            all_listings.extend(ebay_listings)
+            logger.info(f"✅ eBay: {len(ebay_listings)} listings completed")
+        except Exception as e:
+            logger.error(f"❌ Error scraping eBay: {e}")
+        
+        # Scrape Poshmark (AgentQL - must run sequentially)
+        try:
+            logger.info("👗 Starting Poshmark scraping...")
+            poshmark_listings = self.scrape_poshmark(charm_name)
+            results_map['poshmark'] = poshmark_listings
+            all_listings.extend(poshmark_listings)
+            logger.info(f"✅ Poshmark: {len(poshmark_listings)} listings completed")
+        except Exception as e:
+            logger.error(f"❌ Error scraping Poshmark: {e}")
         
         logger.info(f"\n{'='*60}")
         logger.info(f"📊 TOTAL: {len(all_listings)} listings found")
