@@ -60,13 +60,20 @@ class ScraperAPIClient:
             # Import AgentQL scraper
             try:
                 from scrapers.agentql_scraper import AgentQLMarketplaceScraper
-            except ImportError:
-                logger.warning("⚠️ AgentQL not available, skipping Etsy")
+            except ImportError as ie:
+                logger.error(f"⚠️ AgentQL import failed: {ie}")
                 return []
             
             # Use AgentQL for Etsy (handles dynamic content and currency detection)
-            agentql_scraper = AgentQLMarketplaceScraper(headless=True)
-            etsy_results = agentql_scraper.scrape_etsy(charm_name)
+            try:
+                agentql_scraper = AgentQLMarketplaceScraper(headless=True)
+                etsy_results = agentql_scraper.scrape_etsy(charm_name)
+                logger.info(f"✅ [ETSY-AGENTQL] Got {len(etsy_results)} raw results")
+            except Exception as scrape_err:
+                logger.error(f"❌ [ETSY-AGENTQL] Scraping failed: {scrape_err}")
+                import traceback
+                traceback.print_exc()
+                return []
             
             # Convert to our standardized format
             listings = []
@@ -100,6 +107,8 @@ class ScraperAPIClient:
             
         except Exception as e:
             logger.error(f"❌ [ETSY] Error: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def scrape_ebay(self, charm_name: str) -> List[Dict]:
