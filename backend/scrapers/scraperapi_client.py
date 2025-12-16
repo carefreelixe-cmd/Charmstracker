@@ -53,89 +53,49 @@ class ScraperAPIClient:
             return None
     
     def scrape_etsy(self, charm_name: str) -> List[Dict]:
-        """Scrape Etsy marketplace using ScraperAPI"""
+        """Scrape Etsy marketplace using AgentQL (better for dynamic content and currency detection)"""
         try:
-            # Use market page format for better scraping
-            formatted_term = charm_name.lower().replace(' ', '_')
-            url = f"https://www.etsy.com/market/{formatted_term}"
+            logger.info(f"🎨 [ETSY-AGENTQL] Scraping: {charm_name}")
             
-            logger.info(f"🎨 [ETSY] Scraping: {charm_name}")
-            html = self.fetch_page(url, render_js=True)
-            
-            if not html:
+            # Import AgentQL scraper
+            try:
+                from scrapers.agentql_scraper import AgentQLMarketplaceScraper
+            except ImportError:
+                logger.warning("⚠️ AgentQL not available, skipping Etsy")
                 return []
             
-            soup = BeautifulSoup(html, 'html.parser')
+            # Use AgentQL for Etsy (handles dynamic content and currency detection)
+            agentql_scraper = AgentQLMarketplaceScraper(headless=True)
+            etsy_results = agentql_scraper.scrape_etsy(charm_name)
+            
+            # Convert to our standardized format
             listings = []
-            
-            # Find listing cards with multiple selectors
-            listing_cards = soup.find_all('div', class_='v2-listing-card')
-            if not listing_cards:
-                listing_cards = soup.find_all('div', attrs={'data-listing-id': True})
-            
-            logger.info(f"🎨 [ETSY] Found {len(listing_cards)} listing cards")
-            
-            for card in listing_cards[:15]:
+            for item in etsy_results:
                 try:
-                    # Find title - multiple approaches
-                    title_elem = card.find('h2', class_='wt-text-caption') or \
-                                card.find('h3', class_='v2-listing-card__title') or \
-                                card.find('h2', id=lambda x: x and 'listing-title' in x)
-                    title = title_elem.text.strip() if title_elem else None
+                    price = float(item.get('price', 0))
+                    currency = item.get('currency', 'USD')
                     
-                    # Find price - look for currency-value span
-                    price_elem = card.find('span', class_='currency-value')
-                    price = None
-                    if price_elem:
-                        price_text = price_elem.text.strip()
-                        # Remove all non-numeric except decimal point
-                        clean_price = re.sub(r'[^\d.]', '', price_text)
-                        if clean_price:
-                            price = float(clean_price)
-                    
-                    # Fallback: look in price paragraph
-                    if not price:
-                        price_p = card.find('p', class_='wt-text-title-01')
-                        if price_p:
-                            # Match price pattern like $19.99 or 19.99
-                            price_match = re.search(r'\$?\s*([\d]+[.,]?\d*)', price_p.text.replace(',', ''))
-                            if price_match:
-                                price = float(price_match.group(1))
-                    
-                    # Validate price is reasonable (between $1 and $5000 for charms)
-                    if price and (price < 1 or price > 5000):
-                        logger.debug(f"⚠️ Skipping listing with unreasonable price: ${price}")
+                    # Validate price exists
+                    if price <= 0:
+                        logger.debug(f"⚠️ Skipping Etsy listing with invalid price: {price}")
                         continue
                     
-                    # Find URL
-                    link_elem = card.find('a', class_='listing-link')
-                    url_val = link_elem.get('href') if link_elem else None
-                    if url_val and not url_val.startswith('http'):
-                        url_val = 'https://www.etsy.com' + url_val
-                    
-                    # Find image
-                    img_elem = card.find('img', {'data-listing-card-listing-image': True})
-                    if not img_elem:
-                        img_elem = card.find('img', class_='wt-image')
-                    image_url = img_elem.get('src') if img_elem else None
-                    
-                    if title and price and url_val:
-                        listings.append({
-                            'platform': 'etsy',
-                            'marketplace': 'Etsy',
-                            'title': title[:200],
-                            'price': price,
-                            'url': url_val,
-                            'condition': 'New',
-                            'seller': 'Etsy Seller',
-                            'image_url': image_url
-                        })
-                    
+                    listings.append({
+                        'platform': 'etsy',
+                        'marketplace': 'Etsy',
+                        'title': item.get('title', '')[:200],
+                        'price': price,
+                        'currency': currency,
+                        'url': item.get('url', ''),
+                        'condition': item.get('condition', 'New'),
+                        'seller': 'Etsy Seller',
+                        'image_url': item.get('image_url', '')
+                    })
                 except Exception as e:
                     logger.debug(f"⚠️ Parse error: {e}")
                     continue
             
-            logger.info(f"✅ [ETSY] Parsed {len(listings)} listings")
+            logger.info(f"✅ [ETSY] Parsed {len(listings)} listings via AgentQL")
             return listings
             
         except Exception as e:
