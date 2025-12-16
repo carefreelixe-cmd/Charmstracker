@@ -48,57 +48,122 @@ class AgentQLMarketplaceScraper:
                 page.goto(url, wait_until="load", timeout=60000)
                 
                 # Wait a bit for JavaScript to render
-                time.sleep(3)
+                time.sleep(4)
                 
                 # Take screenshot for debugging (only if visible)
                 if not self.headless:
                     page.screenshot(path="etsy_agentql_debug.png")
                     print("📸 [ETSY] Screenshot saved")
                 
-                # Use natural language query to find products
-                QUERY = """
+                # Try Etsy-specific query first
+                ETSY_QUERY = """
                 {
-                    products[] {
-                        title
-                        price
-                        link
-                        image
+                    search_results[] {
+                        listing_title
+                        listing_price
+                        price_currency
+                        currency_symbol
+                        listing_url
+                        listing_image
                     }
                 }
                 """
                 
-                print("🔍 [ETSY] Querying page with AgentQL...")
-                response = page.query_data(QUERY)
+                print("🔍 [ETSY] Querying page with Etsy-specific selectors...")
+                response = page.query_data(ETSY_QUERY)
                 
-                if not response or 'products' not in response:
+                # If first query fails, try generic query
+                if not response or 'search_results' not in response or not response.get('search_results'):
+                    print("⚠️ [ETSY] First query failed, trying generic selectors...")
+                    GENERIC_QUERY = """
+                    {
+                        products[] {
+                            title
+                            price
+                            currency
+                            link
+                            image
+                        }
+                    }
+                    """
+                    response = page.query_data(GENERIC_QUERY)
+                
+                # Check which field structure we got back
+                products = []
+                if response and 'search_results' in response:
+                    products = response['search_results']
+                    field_map = {'title': 'listing_title', 'price': 'listing_price', 'link': 'listing_url', 'image': 'listing_image'}
+                elif response and 'products' in response:
+                    products = response['products']
+                    field_map = {'title': 'title', 'price': 'price', 'link': 'link', 'image': 'image'}
+                else:
                     print("⚠️ [ETSY] No products found in response")
+                    print(f"Response keys: {list(response.keys()) if response else 'None'}")
                     browser.close()
                     return []
                 
-                products = response['products']
                 print(f"✅ [ETSY] Found {len(products)} products")
                 
                 # Convert to our format
                 listings = []
                 for product in products[:10]:  # Limit to 10 results
                     try:
-                        # Extract price (remove currency symbols)
-                        price_str = str(product.get('price', '0'))
-                        price = float(''.join(c for c in price_str if c.isdigit() or c == '.'))
+                        # Get fields using the detected field map
+                        title = product.get(field_map['title']) or product.get('title', '')
+                        price_str = str(product.get(field_map['price']) or product.get('price', '0'))
+                        url = product.get(field_map['link']) or product.get('link', '')
+                        image = product.get(field_map['image']) or product.get('image', '')
+                        
+                        # Get currency info from page
+                        currency_symbol = product.get('currency_symbol', '')
+                        currency_code = product.get('price_currency') or product.get('currency', '')
+                        
+                        # Detect currency from price string or symbol
+                        import re
+                        detected_currency = 'USD'  # default
+                        
+                        if '₹' in price_str or '₹' in currency_symbol or 'INR' in str(currency_code).upper():
+                            detected_currency = 'INR'
+                        elif '€' in price_str or '€' in currency_symbol or 'EUR' in str(currency_code).upper():
+                            detected_currency = 'EUR'
+                        elif '£' in price_str or '£' in currency_symbol or 'GBP' in str(currency_code).upper():
+                            detected_currency = 'GBP'
+                        elif '$' in price_str or '$' in currency_symbol or 'USD' in str(currency_code).upper():
+                            detected_currency = 'USD'
+                        
+                        # Extract numeric price (NO CONVERSION - store as shown)
+                        price = 0
+                        # Extract just the number, keep as-is
+                        price_match = re.search(r'([\d,]+\.?\d*)', price_str.replace(',', ''))
+                        if price_match:
+                            try:
+                                price = float(price_match.group(1))
+                            except:
+                                price = 0
+                        
+                        # Validate price exists
+                        if not title or not price or price <= 0:
+                            print(f"  ⚠️ Skipping: title={bool(title)}, price={price}")
+                            continue
                         
                         listing = {
                             'platform': 'Etsy',
-                            'title': product.get('title', ''),
+                            'title': title,
                             'price': price,
-                            'currency': 'USD',
-                            'url': product.get('link', ''),
-                            'image_url': product.get('image', ''),
+                            'currency': detected_currency,
+                            'url': url,
+                            'image_url': image,
                             'condition': 'New'
                         }
                         listings.append(listing)
-                        print(f"  💎 {listing['title'][:50]}... - ${listing['price']}")
+                        
+                        # Display with correct currency symbol
+                        curr_symbol = {'USD': '$', 'INR': '₹', 'EUR': '€', 'GBP': '£'}.get(detected_currency, '$')
+                        print(f"  💎 {listing['title'][:50]}... - {curr_symbol}{listing['price']} {detected_currency}")
                     except Exception as e:
                         print(f"  ⚠️ Error parsing product: {e}")
+                        import traceback
+                        traceback.print_exc()
                         continue
                 
                 context.close()
