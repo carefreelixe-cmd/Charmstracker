@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class ScraperAPIClient:
     """Client for fetching web pages through ScraperAPI"""
     
-    def __init__(self, api_key='0afc0ab6e056e61161c0097ebbb5231a'):
+    def __init__(self, api_key='be8b8d16e40d4f8d81658ba7b2cc4b34'):
         self.api_key = api_key
         self.base_url = 'https://api.scraperapi.com/'
         logger.info(f"🔧 ScraperAPI initialized with key: {api_key[:20]}...")
@@ -199,7 +199,8 @@ class ScraperAPIClient:
                     # Get other fields
                     image_url = item.get('image', '')
                     condition = item.get('condition', 'Used')
-                    url_val = item.get('url', '')
+                    # ScraperAPI eBay structured data uses 'product_url' field
+                    url_val = item.get('product_url', '') or item.get('url', '')
                     
                     # Extract seller info if available
                     seller_info = 'eBay Seller'
@@ -277,30 +278,41 @@ class ScraperAPIClient:
             return []
     
     def scrape_all(self, charm_name: str) -> List[Dict]:
-        """Scrape all marketplaces for a charm"""
+        """Scrape all marketplaces for a charm in parallel for faster results"""
         logger.info(f"\n{'='*60}")
         logger.info(f"🔍 Scraping all marketplaces for: {charm_name}")
         logger.info(f"{'='*60}")
         
         all_listings = []
         
-        # Scrape each marketplace with small delays
-        etsy_listings = self.scrape_etsy(charm_name)
-        all_listings.extend(etsy_listings)
-        time.sleep(1)
+        # Use ThreadPoolExecutor to scrape all platforms in parallel
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         
-        ebay_listings = self.scrape_ebay(charm_name)
-        all_listings.extend(ebay_listings)
-        time.sleep(1)
-        
-        poshmark_listings = self.scrape_poshmark(charm_name)
-        all_listings.extend(poshmark_listings)
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            # Submit all scraping tasks
+            future_to_platform = {
+                executor.submit(self.scrape_etsy, charm_name): 'etsy',
+                executor.submit(self.scrape_ebay, charm_name): 'ebay',
+                executor.submit(self.scrape_poshmark, charm_name): 'poshmark'
+            }
+            
+            # Collect results as they complete
+            results_map = {'etsy': [], 'ebay': [], 'poshmark': []}
+            for future in as_completed(future_to_platform):
+                platform = future_to_platform[future]
+                try:
+                    listings = future.result()
+                    results_map[platform] = listings
+                    all_listings.extend(listings)
+                    logger.info(f"✅ {platform.upper()}: {len(listings)} listings completed")
+                except Exception as e:
+                    logger.error(f"❌ Error scraping {platform}: {e}")
         
         logger.info(f"\n{'='*60}")
         logger.info(f"📊 TOTAL: {len(all_listings)} listings found")
-        logger.info(f"   🎨 Etsy: {len(etsy_listings)}")
-        logger.info(f"   🛒 eBay: {len(ebay_listings)}")
-        logger.info(f"   👗 Poshmark: {len(poshmark_listings)}")
+        logger.info(f"   🎨 Etsy: {len(results_map['etsy'])}")
+        logger.info(f"   🛒 eBay: {len(results_map['ebay'])}")
+        logger.info(f"   👗 Poshmark: {len(results_map['poshmark'])}")
         logger.info(f"{'='*60}\n")
         
         return all_listings

@@ -16,7 +16,7 @@ def test_scraperapi_james_avery():
     
     print("⚙️  Configuration:")
     print("   - Using ScraperAPI (bypasses bot detection)")
-    print("   - API Key: 0afc0ab6e056e61161c0097ebbb5231a")
+    print("   - API Key: be8b8d16e40d4f8d81658ba7b2cc4b34")
     print("   - Will scrape: Etsy, eBay, Poshmark")
     print("   - JavaScript rendering: ENABLED")
     print("\n" + "-"*80 + "\n")
@@ -155,7 +155,7 @@ The charm details page will show:
 
 2. Test ScraperAPI directly:
    import requests
-   payload = {'api_key': '0afc0ab6e056e61161c0097ebbb5231a', 'url': 'https://httpbin.org/'}
+   payload = {'api_key': 'be8b8d16e40d4f8d81658ba7b2cc4b34', 'url': 'https://httpbin.org/'}
    r = requests.get('https://api.scraperapi.com/', params=payload)
    print(r.status_code)  # Should be 200
 
