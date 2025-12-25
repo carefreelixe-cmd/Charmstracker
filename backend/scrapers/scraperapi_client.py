@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class ScraperAPIClient:
     """Client for fetching web pages through ScraperAPI"""
     
-    def __init__(self, api_key='be8b8d16e40d4f8d81658ba7b2cc4b34'):
+    def __init__(self, api_key='1396d8d4e3704608f7ba6786c3e0497e'):
         self.api_key = api_key
         self.base_url = 'https://api.scraperapi.com/'
         logger.info(f"🔧 ScraperAPI initialized with key: {api_key[:20]}...")
