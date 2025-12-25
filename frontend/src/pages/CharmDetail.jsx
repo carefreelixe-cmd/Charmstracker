@@ -59,7 +59,13 @@ export const CharmDetail = () => {
   const fetchCharmDetail = async () => {
     try {
       setLoading(true);
+      console.log('🔄 Fetching charm detail for ID:', id);
       const data = await charmAPI.getCharmById(id);
+      console.log('📦 Raw charm data received:', data);
+      console.log('   - Listings count:', data.listings?.length || 0);
+      console.log('   - Average price:', data.average_price);
+      console.log('   - Last updated:', data.last_updated);
+      
       setCharm(data);
       
       // Check if data needs updating
@@ -79,6 +85,7 @@ export const CharmDetail = () => {
           console.log('✅ Auto-fetched live prices:', result);
           // Refresh to get new data
           const updatedData = await charmAPI.getCharmById(id);
+          console.log('📦 Updated charm data after auto-fetch:', updatedData);
           setCharm(updatedData);
         } catch (error) {
           console.error('❌ Error auto-fetching prices:', error);
@@ -174,20 +181,25 @@ export const CharmDetail = () => {
       const result = await charmAPI.fetchLivePrices(id);
       
       console.log('✅ Live prices fetched successfully!');
+      console.log('📊 FULL RESULT:', result);
       console.log(`   🎨 Etsy: ${result.summary.etsy.count} listings`);
       console.log(`   🛒 eBay: ${result.summary.ebay.count} listings`);
       console.log(`   👗 Poshmark: ${result.summary.poshmark.count} listings`);
       console.log(`   💰 Average: $${result.average_price}`);
       
       // Refresh charm data to show new listings
+      console.log('🔄 Refreshing charm data from database...');
       await fetchCharmDetail();
+      
+      console.log('✅ Charm data refreshed! New data should now be visible.');
       setUpdating(false);
       
       alert(`✅ Successfully fetched ${result.total_listings} live prices!\n\n🎨 Etsy: ${result.summary.etsy.count} listings\n🛒 eBay: ${result.summary.ebay.count} listings\n👗 Poshmark: ${result.summary.poshmark.count} listings\n\n💰 New Average Price: $${result.average_price}`);
     } catch (error) {
       console.error('❌ Error fetching live prices:', error);
+      console.error('❌ Error details:', error.response?.data || error.message);
       setUpdating(false);
-      alert('❌ Error fetching live prices. Please try again.');
+      alert('❌ Error fetching live prices. Check console for details.');
     }
   };
 
