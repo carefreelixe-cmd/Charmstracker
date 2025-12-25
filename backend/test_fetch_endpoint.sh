@@ -6,16 +6,23 @@ echo "Testing Fetch Live Prices Endpoint"
 echo "================================================"
 echo ""
 
-# Get first charm ID from database
-echo "🔍 Getting a charm ID from database..."
-CHARM_ID=$(mongosh --quiet --eval "use charmstracker; db.charms.findOne({}, {_id: 1}).id" | tail -1 | tr -d '"')
+# Get first charm ID from API
+echo "🔍 Getting a charm ID from API..."
+CHARM_ID=$(curl -s "https://charms.freelixe.com/api/charms?limit=1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 
 if [ -z "$CHARM_ID" ]; then
-    echo "❌ Could not get charm ID from database"
-    echo "Try manually: mongosh"
-    echo "  > use charmstracker"
-    echo "  > db.charms.findOne({}, {_id: 1, name: 1})"
-    exit 1
+    echo "❌ Could not get charm ID from API"
+    echo "Trying alternate method..."
+    
+    # Try with jq if available
+    CHARM_ID=$(curl -s "https://charms.freelixe.com/api/charms?limit=1" | jq -r '.charms[0].id' 2>/dev/null)
+    
+    if [ -z "$CHARM_ID" ] || [ "$CHARM_ID" = "null" ]; then
+        echo "❌ Still could not get charm ID"
+        echo "Please provide a charm ID manually:"
+        echo "  curl https://charms.freelixe.com/api/charms | grep -o '\"id\":\"[^\"]*\"' | head -1"
+        exit 1
+    fi
 fi
 
 echo "✅ Found charm ID: $CHARM_ID"
