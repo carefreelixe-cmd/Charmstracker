@@ -1,0 +1,28 @@
+2025-12-25 12:44:24,848 - INFO - Starting make_all_active.py at 2025-12-25 12:44:24.848386
+Connecting to database: charmtracker_production
+Updating all charms to Active status...
+============================================================
+Found 801 charm(s)
+
+Charm: Enamel Whataburger French Fries Charm
+  Current status: Retired
+Traceback (most recent call last):
+  File "E:\Charmstracker\backend\make_all_active.py", line 65, in <module>
+    asyncio.run(fix_all())
+    ~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Python314\Lib\asyncio\runners.py", line 204, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Python314\Lib\asyncio\runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "E:\Charmstracker\backend\make_all_active.py", line 55, in fix_all
+    print(f"  \u2705 Updated to Active")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 2: character maps to <undefined>

@@ -2,8 +2,23 @@ import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 from dotenv import load_dotenv
+from datetime import datetime
+import logging
+import sys
+
+# Fix Windows console encoding for emojis
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 async def fix_all():
     # Connect to MongoDB
@@ -13,6 +28,7 @@ async def fix_all():
     client = AsyncIOMotorClient(mongo_uri)
     db = client[db_name]
     
+    logger.info(f"Starting make_all_active.py at {datetime.now()}")
     print(f"Connecting to database: {db_name}")
     print("Updating all charms to Active status...")
     print("="*60)

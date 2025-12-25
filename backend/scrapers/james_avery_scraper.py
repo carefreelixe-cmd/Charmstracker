@@ -732,27 +732,29 @@ class JamesAveryScraper:
             if not material:
                 material = 'Silver'  # Default
             
-            # Check if retired
+            # Check if retired - BE CONSERVATIVE
             is_retired = False
             status = 'Active'
             
-            # Look for "retired" or "discontinued" text
+            # ONLY mark as retired if explicitly stated on page
+            # Do NOT mark as retired just because add-to-cart button is missing
             if 'retired' in html.lower() or 'discontinued' in html.lower():
-                is_retired = True
-                status = 'Retired'
+                # Double check it's not just in a random place
+                retired_indicators = [
+                    'this item has been retired',
+                    'product is retired',
+                    'no longer available',
+                    'permanently discontinued'
+                ]
+                html_lower = html.lower()
+                if any(indicator in html_lower for indicator in retired_indicators):
+                    is_retired = True
+                    status = 'Retired'
             
-            # Check for "out of stock" or "unavailable"
-            availability_elem = soup.find('button', class_=re.compile(r'add-to-cart'))
-            if availability_elem:
-                button_text = availability_elem.text.lower()
-                if 'unavailable' in button_text or 'out of stock' in button_text:
-                    # Could be temporarily out of stock or retired
-                    # Check elsewhere for confirmation
-                    pass
-            else:
-                # No add to cart button might mean retired
-                is_retired = True
-                status = 'Retired'
+            # Do NOT mark as retired for temporary issues like:
+            # - Missing add-to-cart button (could be page load issue)
+            # - Out of stock (temporary)
+            # Keep status as Active unless explicitly retired
             
             # Extract price - try multiple methods
             price = None
